@@ -1,0 +1,22 @@
+
+Welcome to your new wallet, here is your payment address:
+TRTLuwnfzZT88G6V9Z5GDRNiRCjZkfUWaBzAJY9wRqpwZqGk7Keyhem2apiN4DmTJNbBCZxkDGBwo2hKmwNG2PD9U7hUEGdaLx7
+
+Please copy your secret keys and mnemonic seed and store them in a secure location:
+
+
+Private spend key:
+17c2b0ba9e14ae561892ae82522626dddb41b19d60276f2db28253606cb6d507
+Private view key:
+b2db994d01722f2e8dd0ca93c8ddabacd82ee91512769b5e4334c60b18d19803
+
+If you lose these your wallet cannot be recreated!
+
+It looks like RezinCatalystd isn't open!
+
+Ensure RezinCatalystd is open and has finished syncing. (It will often not respond when syncing)
+If it's still not working, try restarting RezinCatalystd (or try a different remote node).
+The daemon sometimes gets stuck.
+Alternatively, perhaps RezinCatalystd can't communicate with any peers.
+
+The wallet can't function fully until it can communicate with the network.
