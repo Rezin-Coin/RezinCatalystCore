@@ -2,11 +2,11 @@
 #define STR(x) STR_HELPER(x)
 
 #define PROJECT_NAME "RezinCatalystCore"
-#define PROJECT_SITE ""
-#define PROJECT_COPYRIGHT "Copyright 2018-2021, The TurtleCoin Developers","Rezin Catalyst Core Team (2024)"
-#define APP_VER_MAJOR 0
+#define PROJECT_SITE "https://rezincatalystcore.com"
+#define PROJECT_COPYRIGHT "Copyright (c) 2024, Team Rezin Catalyst Core"
+#define APP_VER_MAJOR 1
 #define APP_VER_MINOR 0
-#define APP_VER_REV 0
+#define APP_VER_REV 1
 #define APP_VER_BUILD 2001
 
 #define BUILD_COMMIT_ID "@VERSION@"
