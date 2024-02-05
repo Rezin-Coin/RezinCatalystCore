@@ -69,7 +69,7 @@ namespace CryptoNote
 
         const char GENESIS_COINBASE_TX_HEX[] =
             "010a01ff000188f3b501029b2e4c0281c0b02e7c53291a94d1d0cbff8883f8024f5142ee494ffbbd088071210142694232c5b04151"
-            "d9e4c27d31ec7a68ea568b19488cfcb422659a07a0e44dd5";
+            "d9e4c27d31ec7a68ea568b19488cfcb422659a07a0e44dd4";
 
         static_assert(
             sizeof(GENESIS_COINBASE_TX_HEX) / sizeof(*GENESIS_COINBASE_TX_HEX) != 1,
@@ -298,7 +298,7 @@ namespace CryptoNote
         };
 
         /* MAKE SURE TO UPDATE THIS VALUE WITH EVERY MAJOR RELEASE BEFORE A FORK */
-        const uint64_t SOFTWARE_SUPPORTED_FORK_INDEX = 30;
+        const uint64_t SOFTWARE_SUPPORTED_FORK_INDEX = 0;
 
         const uint64_t FORK_HEIGHTS_SIZE = sizeof(FORK_HEIGHTS) / sizeof(*FORK_HEIGHTS);
 
@@ -326,7 +326,7 @@ namespace CryptoNote
         const char MINER_CONFIG_FILE_NAME[] = "miner_conf.json";
     } // namespace parameters
 
-    const char CRYPTONOTE_NAME[] = "TurtleCoin";
+    const char CRYPTONOTE_NAME[] = "RezinCatalystCore";
 
     const uint8_t TRANSACTION_VERSION_1 = 1;
 
@@ -409,19 +409,16 @@ namespace CryptoNote
     const uint64_t LEVELDB_MAX_OPEN_FILES = 128; // 128 files
     const uint64_t LEVELDB_MAX_FILE_SIZE_MB = 1024; // 1024MB = 1GB
 
-    const char LATEST_VERSION_URL[] = "http://latest.turtlecoin.lol";
+    const char LATEST_VERSION_URL[] = "";
 
-    const std::string LICENSE_URL = "https://github.com/turtlecoin/turtlecoin/blob/master/LICENSE";
+    const std::string LICENSE_URL = "";
 
     const static boost::uuids::uuid CRYPTONOTE_NETWORK = {
-        {0xb5, 0x0c, 0x4a, 0x6c, 0xcf, 0x52, 0x57, 0x41, 0x65, 0xf9, 0x91, 0xa4, 0xb6, 0xc1, 0x43, 0xe9}};
+        {0xA5, 0x2c, 0x6a, 0x6C, 0xFf, 0x02, 0x07, 0x61, 0x95, 0xA9, 0xA0, 0x94, 0xc6, 0xd1, 0xb3, 0xA9}};
 
     const char *const SEED_NODES[] = {
-        "145.239.88.119:11897", // cision
-        "165.227.252.132:11897", // iburnmycd
-        "148.251.178.238:11897", // hv
-        "45.32.138.7:11897", // extra
-        "46.214.70.196:11897", // CuveeRO
-        "89.203.235.107:11897" // CuveeCZ
+        "192.168.0.233:11897", // 
+        "192.168.0.112:11897" // 
+    
     };
 } // namespace CryptoNote
