@@ -13,10 +13,7 @@ const std::string windowsAsciiArt =
 "| |__) || |     | |     /n"
 "|  _  / | |     | |     /n"
 "| | \ \ | |____ | |____ /n"
-"|_|  \_\ \_____| \_____|/n"
-                        
-                        
-;
+"|_|  \_\ \_____| \_____|/n";
 
 const std::string nonWindowsAsciiArt =
     "\n                           /n" 
