@@ -174,7 +174,7 @@ bool ValidateTransaction::validateTransactionInputs()
                                         0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x10}};
 
     uint64_t sumOfInputs = 0;
-cd ssr
+
 
     std::unordered_set<Crypto::KeyImage> ki;
 
