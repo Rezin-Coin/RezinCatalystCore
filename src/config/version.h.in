@@ -4,9 +4,9 @@
 #define PROJECT_NAME "RezinCatalystCore"
 #define PROJECT_SITE "https://rezincatalystcore.com"
 #define PROJECT_COPYRIGHT "Copyright (c) 2024, Team Rezin Catalyst Core"
-#define APP_VER_MAJOR 1
-#define APP_VER_MINOR 1
-#define APP_VER_REV 1
+#define APP_VER_MAJOR 0
+#define APP_VER_MINOR 0
+#define APP_VER_REV 2
 #define APP_VER_BUILD 2024
 
 #define BUILD_COMMIT_ID "@VERSION@"

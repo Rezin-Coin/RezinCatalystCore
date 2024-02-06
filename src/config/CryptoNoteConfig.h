@@ -34,7 +34,7 @@ namespace CryptoNote
 
         const size_t CRYPTONOTE_MAX_TX_SIZE = 1'000'000'000;
 
-        const uint64_t CRYPTONOTE_PUBLIC_ADDRESS_BASE58_PREFIX = 3914525;
+        const uint64_t CRYPTONOTE_PUBLIC_ADDRESS_BASE58_PREFIX = 0x66712;
 
         const uint32_t CRYPTONOTE_MINED_MONEY_UNLOCK_WINDOW = 40;
 
@@ -69,7 +69,7 @@ namespace CryptoNote
 
         const char GENESIS_COINBASE_TX_HEX[] =
             "012801ff000188f3b501029b2e4c0281c0b02e7c53291a94d1d0cbff8883f8024f5142ee494ffbbd088071840101a4aca31c815835959e1b62225e1cba3f1ea04a7505211bfeb9f1aa506bb56c850400000000000000000000000000000000000000000000000000000000000000000500000000000000000000000000000000000000000000000000000000000000000629259f38403d875f3a7996e4cadcd0a3ac891b58de633cd1765a7e1539a7c500";
-
+// 012801ff000188f3b501029b2e4c0281c0b02e7c53291a94d1d0cbff8883f8024f5142ee494ffbbd08807184010105788b7fe25e7478d4268866a4cf032ce92dac824669daa8f2c961ecb65b81ab040000000000000000000000000000000000000000000000000000000000000000050000000000000000000000000000000000000000000000000000000000000000066504b14f6eb75d9139bdcd99bd599b4feafbf96c6ea372824025502b20e4390e
         static_assert(
             sizeof(GENESIS_COINBASE_TX_HEX) / sizeof(*GENESIS_COINBASE_TX_HEX) != 1,
             "GENESIS_COINBASE_TX_HEX must not be empty.");
@@ -263,41 +263,11 @@ namespace CryptoNote
 
         /* Block heights we are going to have hard forks at */
         const uint64_t FORK_HEIGHTS[] = {
-            187'000, // 0
-            350'000, // 1
-            440'000, // 2
-            620'000, // 3
-            700'000, // 4
-            800'000, // 5
-            1'000'000, // 6
-            1'200'000, // 7
-            1'300'000, // 8
-            1'400'000, // 9
-            1'600'000, // 10
-            1'800'000, // 11
-            2'000'000, // 12
-            2'200'000, // 13
-            2'400'000, // 14
-            2'600'000, // 15
-            2'800'000, // 16
-            3'000'000, // 17
-            3'200'000, // 18
-            3'400'000, // 19
-            3'600'000, // 20
-            3'800'000, // 21
-            4'000'000, // 22
-            4'200'000, // 23
-            4'400'000, // 24
-            4'600'000, // 25
-            4'800'000, // 26
-            5'000'000, // 27
-            5'200'000, // 28
-            5'400'000, // 29
-            5'500'000, // 30
-        };
+        
+};
 
         /* MAKE SURE TO UPDATE THIS VALUE WITH EVERY MAJOR RELEASE BEFORE A FORK */
-        const uint64_t SOFTWARE_SUPPORTED_FORK_INDEX = 30;
+        const uint64_t SOFTWARE_SUPPORTED_FORK_INDEX = 0;
 
         const uint64_t FORK_HEIGHTS_SIZE = sizeof(FORK_HEIGHTS) / sizeof(*FORK_HEIGHTS);
 
@@ -413,11 +383,13 @@ namespace CryptoNote
     const std::string LICENSE_URL = "";
 
     const static boost::uuids::uuid CRYPTONOTE_NETWORK = {
-        {0xA5, 0x2c, 0x6a, 0x6C, 0xFf, 0x02, 0x07, 0x61, 0x95, 0xA9, 0xA0, 0x94, 0xc6, 0xd1, 0xb3, 0xA9}};
+        {0xf5, 0x2c, 0x6a, 0x6d, 0xff, 0x02, 0x07, 0x61, 0x95, 0xa9, 0xb0, 0x94, 0xc6, 0xd1, 0x33, 0x69}};
 
-    const char *const SEED_NODES[] = {
-        "192.168.0.233:11897", // 
-        "192.168.0.112:11897" // 
+    const char *const SEED_NODES[] = 
+    {
+        "192.168.0.233:11897",  
+        "192.168.0.112:11897",
+        "192.168.0.25:11897", 
     
     };
 } // namespace CryptoNote

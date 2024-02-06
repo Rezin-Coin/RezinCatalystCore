@@ -23,14 +23,14 @@ namespace WalletConfig
     const std::string addressBookFilename = ".addressBook.json";
 
     /* The name of your deamon */
-    const std::string daemonName = "RezinCatalystd";
+    const std::string daemonName = "RezinCCd";
 
     /* The name to call this wallet */
-    const std::string walletName = "RezinCatalystWallet";
+    const std::string walletName = "RezinCC-wallet";
 
     /* The name of service/walletd, the programmatic rpc interface to a
        wallet */
-    const std::string walletdName = "Rezin-Service";
+    const std::string walletdName = "RezinCC-walletd";
 
     /* The full name of your crypto */
     const std::string coinName = std::string(CryptoNote::CRYPTONOTE_NAME);
