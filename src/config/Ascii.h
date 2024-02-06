@@ -6,8 +6,8 @@
 
 #include <string>
 
-const std::string windowsAsciiArt = 
-"\n                      /n"
+const std::string windowsAsciiArt =
+"\n                       /n"
 " _____    _____   _____ /n"
 "|  __ \  / ____| / ____|/n"
 "| |__) || |     | |     /n"
@@ -16,7 +16,7 @@ const std::string windowsAsciiArt =
 "|_|  \_\ \_____| \_____|/n";
 
 const std::string nonWindowsAsciiArt =
-    "\n                           /n" 
+   "\n                            /n"
     "  ______    ______   ______ /n"
     " (_____ \  / _____) / _____)/n"
     "  _____) )| /      | /      /n"
