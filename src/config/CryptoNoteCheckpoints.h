@@ -16,5 +16,7 @@ namespace CryptoNote
         const char *blockId;
     };
 
-    const std::initializer_list<CheckpointData> CHECKPOINTS = {};
+    const std::initializer_list<CheckpointData> CHECKPOINTS = {
+        //{0, ""},
+    };
 } // namespace CryptoNote
