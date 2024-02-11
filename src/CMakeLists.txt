@@ -34,10 +34,14 @@ file(GLOB_RECURSE P2p p2p/*)
 file(GLOB_RECURSE Rpc rpc/*)
 file(GLOB_RECURSE Serialization serialization/*)
 file(GLOB_RECURSE SubWallets subwallets/*)
-file(GLOB_RECURSE TurtleCoind daemon/*)
+file(GLOB_RECURSE Transfers transfers/*)
+file(GLOB_RECURSE RezinCCd daemon/*)
 file(GLOB_RECURSE Utilities utilities/*)
+file(GLOB_RECURSE Wallet wallet/*)
 file(GLOB_RECURSE WalletApi walletapi/*)
 file(GLOB_RECURSE WalletBackend walletbackend/*)
+file(GLOB_RECURSE WalletService walletservice/*)
+file(GLOB_RECURSE WalletUpgrader walletupgrader/*)
 file(GLOB_RECURSE zedwallet++ zedwallet++/*)
 
 if (MSVC)
@@ -49,7 +53,7 @@ else ()
 endif ()
 
 # Group the files together in IDEs
-source_group("" FILES $${Common} ${Config} ${Crypto} ${CryptoNoteCore} ${CryptoNoteProtocol} ${TurtleCoind} ${Http} ${Logging} ${Logger} ${miner} ${Mnemonics} ${Nigel} ${P2p} ${Rpc} ${Serialization} ${System} ${Wallet} ${WalletApi} ${WalletBackend} ${zedwallet++} ${CryptoTest} ${Errors} ${Utilities} ${WalletUpgrader} ${SubWallets})
+ource_group("" FILES $${Common} ${Config} ${Crypto} ${CryptoNoteCore} ${CryptoNoteProtocol} ${RezinCCd} ${JsonRpcServer} ${Http} ${Logging} ${Logger} ${miner} ${Mnemonics} ${Nigel} ${NodeRpcProxy} ${P2p} ${Rpc} ${Serialization} ${System} ${Transfers} ${Wallet} ${WalletApi} ${WalletBackend} ${WalletService} ${zedwallet++} ${CryptoTest} ${Errors} ${Utilities} ${WalletUpgrader} ${SubWallets})
 
 # Define a group of files as a library to link against
 add_library(Common STATIC ${Common})
@@ -58,16 +62,20 @@ add_library(Crypto STATIC ${Crypto})
 add_library(CryptoNoteCore STATIC ${CryptoNoteCore})
 add_library(Errors STATIC ${Errors})
 add_library(Http STATIC ${Http})
+add_library(JsonRpcServer STATIC ${JsonRpcServer})
 add_library(Logging STATIC ${Logging})
 add_library(Logger STATIC ${Logger})
 add_library(Mnemonics STATIC ${Mnemonics})
 add_library(Nigel STATIC ${Nigel})
+add_library(NodeRpcProxy STATIC ${NodeRpcProxy})
 add_library(P2P STATIC ${CryptoNoteProtocol} ${P2p})
 add_library(Rpc STATIC ${Rpc})
 add_library(Serialization STATIC ${Serialization})
 add_library(SubWallets STATIC ${SubWallets})
 add_library(System STATIC ${System})
+add_library(Transfers STATIC ${Transfers})
 add_library(Utilities STATIC ${Utilities})
+add_library(Wallet STATIC ${Wallet})
 add_library(WalletBackend STATIC ${WalletBackend})
 
 if (MSVC)
@@ -80,26 +88,36 @@ if (MSVC)
     set(MINER_SOURCES_OS
             binaryinfo/miner.rc
             )
+    set(PG_SOURCES_OS
+            binaryinfo/service.rc
+            )
     set(CT_SOURCES_OS
             binaryinfo/cryptotest.rc
             )
     set(WALLET_API_SOURCES_OS
             binaryinfo/walletapi.rc
             )
+    set(WALLET_UPGRADER_SOURCES_OS
+            binaryinfo/walletupgrader.rc
+            )
 endif ()
 
 add_executable(cryptotest ${CryptoTest} ${CT_SOURCES_OS})
 add_executable(miner ${miner} ${MINER_SOURCES_OS})
-add_executable(TurtleCoind ${TurtleCoind} ${DAEMON_SOURCES_OS})
+add_executable(WalletService ${WalletService} ${PG_SOURCES_OS})
+add_executable(RezinCCd ${RezinCCd} ${DAEMON_SOURCES_OS})
 add_executable(WalletApi ${WalletApi} ${WALLET_API_SOURCES_OS})
+add_executable(WalletUpgrader ${WalletUpgrader} ${WALLET_UPGRADER_SOURCES_OS})
 add_executable(zedwallet++ ${zedwallet++} ${ZED_WALLET_SOURCES_OS})
 
 if (MSVC)
     target_link_libraries(System ws2_32)
-    target_link_libraries(TurtleCoind Rpcrt4 ws2_32 advapi32 crypt32 gdi32 user32)
+    target_link_libraries(RezinCCd Rpcrt4 ws2_32 advapi32 crypt32 gdi32 user32)
+    target_link_libraries(WalletService Rpcrt4 ws2_32 advapi32 crypt32 gdi32 user32)
     target_link_libraries(zedwallet++ ws2_32 advapi32 crypt32 gdi32 user32)
     target_link_libraries(WalletApi ws2_32 advapi32 crypt32 gdi32 user32)
     target_link_libraries(miner ws2_32 advapi32 crypt32 gdi32 user32)
+    target_link_libraries(WalletUpgrader ws2_32 advapi32 crypt32 gdi32 user32)
 endif ()
 
 # A bit of hackery so we don't have to do the if/else/ for every target that
@@ -128,13 +146,18 @@ target_link_libraries(Errors Crypto SubWallets Utilities)
 target_link_libraries(Logging Common)
 target_link_libraries(miner Crypto Errors Utilities System Serialization)
 target_link_libraries(Nigel Errors CryptoNoteCore)
+target_link_libraries(NodeRpcProxy Rpc)
 target_link_libraries(P2P upnpc-static Serialization System CryptoNoteCore)
 target_link_libraries(Rpc P2P Utilities CryptoNoteCore)
 target_link_libraries(Serialization Common Crypto ${Boost_LIBRARIES})
 target_link_libraries(SubWallets Common Logger)
+target_link_libraries(Transfers CryptoNoteCore)
 target_link_libraries(Utilities Common Errors)
+target_link_libraries(Wallet NodeRpcProxy Transfers CryptoNoteCore Common WalletBackend ${Boost_LIBRARIES} ${CURL_LIBRARIES})
 target_link_libraries(WalletApi WalletBackend)
-target_link_libraries(WalletBackend Serialization Mnemonics Nigel cryptopp-static __filesystem Utilities SubWallets Logger Config)
+target_link_libraries(WalletBackend Serialization Mnemonics Nigel cryptopp-static __filesystem Utilities SubWallets Logger Config Wallet)
+target_link_libraries(WalletService JsonRpcServer Wallet Mnemonics Errors)
+target_link_libraries(WalletUpgrader Utilities WalletBackend Common)
 target_link_libraries(zedwallet++ WalletBackend)
 
 if (OPENSSL_FOUND)
@@ -142,7 +165,8 @@ if (OPENSSL_FOUND)
     target_link_libraries(Nigel ${OPENSSL_LIBRARIES})
     target_link_libraries(WalletApi ${OPENSSL_LIBRARIES})
     target_link_libraries(zedwallet++ ${OPENSSL_LIBRARIES})
-    target_link_libraries(TurtleCoind ${OPENSSL_LIBRARIES})
+    target_link_libraries(WalletService ${OPENSSL_LIBRARIES})
+    target_link_libraries(RezinCCd ${OPENSSL_LIBRARIES})
 endif ()
 
 # Add dependencies means we have to build the latter before we build the former
@@ -150,22 +174,27 @@ endif ()
 # than a cached one
 add_dependencies(cryptotest version)
 add_dependencies(miner version)
+add_dependencies(JsonRpcServer version)
 add_dependencies(P2P version)
 add_dependencies(Rpc version)
-add_dependencies(TurtleCoind version)
+add_dependencies(RezinCCd version)
+add_dependencies(WalletUpgrader version)
 add_dependencies(WalletApi version)
+add_dependencies(WalletService version)
 add_dependencies(zedwallet++ version)
 
 # Finally build the binaries
-set_property(TARGET TurtleCoind PROPERTY OUTPUT_NAME "RezinCCd")
-set_property(TARGET zedwallet++ PROPERTY OUTPUT_NAME "RezinCC-wallet")
-set_property(TARGET miner PROPERTY OUTPUT_NAME "RezinCC-miner")
-set_property(TARGET cryptotest PROPERTY OUTPUT_NAME "cryptotest")
-set_property(TARGET WalletApi PROPERTY OUTPUT_NAME "RezinCC-walletd")
+set_property(TARGET RezinCCd PROPERTY OUTPUT_NAME "RezinCCd")
+set_property(TARGET zedwallet++ PROPERTY OUTPUT_NAME "Nolanium-Wallet")
+set_property(TARGET WalletService PROPERTY OUTPUT_NAME "Nolanium-Service")
+set_property(TARGET miner PROPERTY OUTPUT_NAME "Nolanium-Miner")
+set_property(TARGET cryptotest PROPERTY OUTPUT_NAME "Cryptotest")
+set_property(TARGET WalletApi PROPERTY OUTPUT_NAME "Nolanium-Wallet-API")
+set_property(TARGET WalletUpgrader PROPERTY OUTPUT_NAME "Wallet-Upgrader")
 
 # Additional make targets, can be used to build a subset of the targets
-# e.g. make pool will build only TurtleCoind and service
-add_custom_target(pool DEPENDS TurtleCoind WalletApi)
-add_custom_target(solominer DEPENDS TurtleCoind zedwallet++ miner)
-add_custom_target(cli DEPENDS TurtleCoind zedwallet++)
+# e.g. make pool will build only RezinCCd and service
+add_custom_target(pool DEPENDS RezinCCd WalletService)
+add_custom_target(solominer DEPENDS RezinCCd zedwallet++ miner)
+add_custom_target(cli DEPENDS RezinCCd zedwallet++)
 add_custom_target(zedwallet DEPENDS zedwallet++)

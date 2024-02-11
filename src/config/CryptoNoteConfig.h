@@ -263,7 +263,10 @@ namespace CryptoNote
 
         /* Block heights we are going to have hard forks at */
         const uint64_t FORK_HEIGHTS[] = {
-        
+          250,    /* 0 ~ TRANSACTION_SIGNATURE_COUNT_VALIDATION, BLOCK_BLOB_SHUFFLE_CHECK, TRANSACTION_INPUT_BLOCKTIME_VALIDATION, NORMAL_TX_MAX_OUTPUT_COUNT_V1 */
+          50000,  /* 1 ~ MIXIN LIMIT V2 */
+          250000, /* 2 ~ MIXIN LIMIT V3 */
+          500000  /* 3 ~ MAX_OUTPUT_SIZE */
 };
 
         /* MAKE SURE TO UPDATE THIS VALUE WITH EVERY MAJOR RELEASE BEFORE A FORK */
@@ -383,13 +386,12 @@ namespace CryptoNote
     const std::string LICENSE_URL = "";
 
     const static boost::uuids::uuid CRYPTONOTE_NETWORK = {
-        {0xf5, 0x2c, 0x6a, 0x6d, 0xff, 0x02, 0x07, 0x61, 0x95, 0xa9, 0xb0, 0x94, 0xc6, 0xd1, 0x33, 0x69}};
+        {0xf5, 0x2c, 0x6a, 0x6d, 0xff, 0x02, 0x07, 0x61, 0x95, 0xa9, 0xb0, 0x94, 0xc6, 0xd1, 0x33, 0x69}
+    };
 
-    const char *const SEED_NODES[] = 
-    {
-        "192.168.0.233:11897",  
+    const char *const SEED_NODES[] = {
+        "192.168.0.114:11897",  
         "192.168.0.112:11897",
-        "192.168.0.25:11897", 
-    
+        "192.168.0.25:11897"     
     };
 } // namespace CryptoNote
