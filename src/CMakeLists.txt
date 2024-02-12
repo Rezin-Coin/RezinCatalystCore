@@ -53,7 +53,7 @@ else ()
 endif ()
 
 # Group the files together in IDEs
-ource_group("" FILES $${Common} ${Config} ${Crypto} ${CryptoNoteCore} ${CryptoNoteProtocol} ${RezinCCd} ${JsonRpcServer} ${Http} ${Logging} ${Logger} ${miner} ${Mnemonics} ${Nigel} ${NodeRpcProxy} ${P2p} ${Rpc} ${Serialization} ${System} ${Transfers} ${Wallet} ${WalletApi} ${WalletBackend} ${WalletService} ${zedwallet++} ${CryptoTest} ${Errors} ${Utilities} ${WalletUpgrader} ${SubWallets})
+source_group("" FILES $${Common} ${Config} ${Crypto} ${CryptoNoteCore} ${CryptoNoteProtocol} ${RezinCCd} ${JsonRpcServer} ${Http} ${Logging} ${Logger} ${miner} ${Mnemonics} ${Nigel} ${NodeRpcProxy} ${P2p} ${Rpc} ${Serialization} ${System} ${Transfers} ${Wallet} ${WalletApi} ${WalletBackend} ${WalletService} ${zedwallet++} ${CryptoTest} ${Errors} ${Utilities} ${WalletUpgrader} ${SubWallets})
 
 # Define a group of files as a library to link against
 add_library(Common STATIC ${Common})
@@ -132,9 +132,9 @@ elseif (UNIX)
 endif ()
 
 if (MSVC)
-    target_link_libraries(TurtleCoind System CryptoNoteCore rocksdb zstd lz4 leveldb snappy Errors ${Boost_LIBRARIES})
+    target_link_libraries(RezinCCd System CryptoNoteCore rocksdb zstd lz4 leveldb snappy Errors ${Boost_LIBRARIES})
 else ()
-    target_link_libraries(TurtleCoind System CryptoNoteCore rocksdblib zstd lz4 leveldblib snappy Errors ${Boost_LIBRARIES})
+    target_link_libraries(RezinCCd System CryptoNoteCore rocksdblib zstd lz4 leveldblib snappy Errors ${Boost_LIBRARIES})
 endif ()
 
 # Add the dependencies we need
