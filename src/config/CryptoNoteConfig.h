@@ -390,8 +390,7 @@ namespace CryptoNote
     };
 
     const char *const SEED_NODES[] = {
-        "192.168.0.114:11897",  
-        "192.168.0.112:11897",
-        "192.168.0.25:11897"     
+        "192.168.0.119:11897",  
+        "192.168.0.112:11897"         
     };
 } // namespace CryptoNote
