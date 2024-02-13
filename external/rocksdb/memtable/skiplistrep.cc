@@ -8,7 +8,7 @@
 #include "memtable/inlineskiplist.h"
 #include "rocksdb/memtablerep.h"
 
-namespace ROCKSDB_NAMESPACE {
+namespace rocksdb {
 namespace {
 class SkipListRep : public MemTableRep {
   InlineSkipList<const MemTableRep::KeyComparator&> skip_list_;
@@ -48,15 +48,6 @@ public:
 
  bool InsertKeyWithHint(KeyHandle handle, void** hint) override {
    return skip_list_.InsertWithHint(static_cast<char*>(handle), hint);
- }
-
- void InsertWithHintConcurrently(KeyHandle handle, void** hint) override {
-   skip_list_.InsertWithHintConcurrently(static_cast<char*>(handle), hint);
- }
-
- bool InsertKeyWithHintConcurrently(KeyHandle handle, void** hint) override {
-   return skip_list_.InsertWithHintConcurrently(static_cast<char*>(handle),
-                                                hint);
  }
 
  void InsertConcurrently(KeyHandle handle) override {
@@ -277,4 +268,4 @@ MemTableRep* SkipListFactory::CreateMemTableRep(
   return new SkipListRep(compare, allocator, transform, lookahead_);
 }
 
-}  // namespace ROCKSDB_NAMESPACE
+} // namespace rocksdb

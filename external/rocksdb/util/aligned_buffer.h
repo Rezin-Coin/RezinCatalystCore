@@ -11,7 +11,7 @@
 #include <algorithm>
 #include "port/port.h"
 
-namespace ROCKSDB_NAMESPACE {
+namespace rocksdb {
 
 // This file contains utilities to handle the alignment of pages and buffers.
 
@@ -114,13 +114,6 @@ public:
 
   void Clear() {
     cursize_ = 0;
-  }
-
-  char* Release() {
-    cursize_ = 0;
-    capacity_ = 0;
-    bufstart_ = nullptr;
-    return buf_.release();
   }
 
   void Alignment(size_t alignment) {
@@ -252,4 +245,4 @@ public:
     cursize_ = cursize;
   }
 };
-}  // namespace ROCKSDB_NAMESPACE
+}

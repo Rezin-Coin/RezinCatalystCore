@@ -28,7 +28,7 @@
 #include "utilities/transactions/transaction_base.h"
 #include "utilities/transactions/transaction_util.h"
 
-namespace ROCKSDB_NAMESPACE {
+namespace rocksdb {
 
 class PessimisticTransactionDB;
 
@@ -40,9 +40,6 @@ class PessimisticTransaction : public TransactionBaseImpl {
   PessimisticTransaction(TransactionDB* db, const WriteOptions& write_options,
                          const TransactionOptions& txn_options,
                          const bool init = true);
-  // No copying allowed
-  PessimisticTransaction(const PessimisticTransaction&) = delete;
-  void operator=(const PessimisticTransaction&) = delete;
 
   virtual ~PessimisticTransaction();
 
@@ -120,9 +117,6 @@ class PessimisticTransaction : public TransactionBaseImpl {
   // Refer to
   // TransactionOptions::use_only_the_last_commit_time_batch_for_recovery
   bool use_only_the_last_commit_time_batch_for_recovery_ = false;
-  // Refer to
-  // TransactionOptions::skip_prepare
-  bool skip_prepare_ = false;
 
   virtual Status PrepareInternal() = 0;
 
@@ -199,15 +193,16 @@ class PessimisticTransaction : public TransactionBaseImpl {
 
   void UnlockGetForUpdate(ColumnFamilyHandle* column_family,
                           const Slice& key) override;
+
+  // No copying allowed
+  PessimisticTransaction(const PessimisticTransaction&);
+  void operator=(const PessimisticTransaction&);
 };
 
 class WriteCommittedTxn : public PessimisticTransaction {
  public:
   WriteCommittedTxn(TransactionDB* db, const WriteOptions& write_options,
                     const TransactionOptions& txn_options);
-  // No copying allowed
-  WriteCommittedTxn(const WriteCommittedTxn&) = delete;
-  void operator=(const WriteCommittedTxn&) = delete;
 
   virtual ~WriteCommittedTxn() {}
 
@@ -221,8 +216,12 @@ class WriteCommittedTxn : public PessimisticTransaction {
   Status CommitInternal() override;
 
   Status RollbackInternal() override;
+
+  // No copying allowed
+  WriteCommittedTxn(const WriteCommittedTxn&);
+  void operator=(const WriteCommittedTxn&);
 };
 
-}  // namespace ROCKSDB_NAMESPACE
+}  // namespace rocksdb
 
 #endif  // ROCKSDB_LITE

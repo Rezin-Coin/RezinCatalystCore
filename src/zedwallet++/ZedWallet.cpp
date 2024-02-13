@@ -78,29 +78,7 @@ int main(int argc, char **argv)
 
     Logger::logger.setLogLevel(config.logLevel);
 
-    std::ofstream logFile;
-
-    if (config.loggingFilePath)
-    {
-        logFile.open(*config.loggingFilePath, std::ios_base::app);
-    }
-
-    Logger::logger.setLogCallback(
-        [&config, &logFile](
-            const std::string prettyMessage,
-            const std::string message,
-            const Logger::LogLevel level,
-            const std::vector<Logger::LogCategory> categories)
-        {
-            std::cout << prettyMessage << std::endl;
-
-            if (config.loggingFilePath)
-            {
-                logFile << prettyMessage << std::endl;
-            }
-        });
-
-    std::cout << InformationMsg(CryptoNote::getProjectCLIHeader()) << std::endl;
+    std::cout << NormalMsg(CryptoNote::getProjectCLIHeader()) << std::endl;
 
     /* Declare outside the try/catch, so if an exception is thrown, it doesn't
        cause the threads to go out of scope, calling std::terminate
@@ -118,7 +96,7 @@ int main(int argc, char **argv)
 
         if (quit)
         {
-            std::cout << "Thanks for stopping by..." << std::endl;
+            std::cout << "Thank you for using Nolanium!" << std::endl;
             return 0;
         }
 
@@ -167,5 +145,5 @@ int main(int argc, char **argv)
         cleanup(txMonitorThread, ctrlCWatcher, stop, txMonitor);
     }
 
-    std::cout << "Thanks for stopping by..." << std::endl;
+    std::cout << "Thank you for using Nolanium!" << std::endl;
 }

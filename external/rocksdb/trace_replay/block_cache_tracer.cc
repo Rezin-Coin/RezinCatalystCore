@@ -16,7 +16,7 @@
 #include "util/hash.h"
 #include "util/string_util.h"
 
-namespace ROCKSDB_NAMESPACE {
+namespace rocksdb {
 
 namespace {
 const unsigned int kCharSize = 1;
@@ -28,8 +28,8 @@ bool ShouldTrace(const Slice& block_key, const TraceOptions& trace_options) {
   }
   // We use spatial downsampling so that we have a complete access history for a
   // block.
-  return 0 == fastrange64(GetSliceNPHash64(block_key),
-                          trace_options.sampling_frequency);
+  const uint64_t hash = GetSliceNPHash64(block_key);
+  return hash % trace_options.sampling_frequency == 0;
 }
 }  // namespace
 
@@ -312,8 +312,7 @@ BlockCacheHumanReadableTraceWriter::~BlockCacheHumanReadableTraceWriter() {
 }
 
 Status BlockCacheHumanReadableTraceWriter::NewWritableFile(
-    const std::string& human_readable_trace_file_path,
-    ROCKSDB_NAMESPACE::Env* env) {
+    const std::string& human_readable_trace_file_path, rocksdb::Env* env) {
   if (human_readable_trace_file_path.empty()) {
     return Status::InvalidArgument(
         "The provided human_readable_trace_file_path is null.");
@@ -494,4 +493,4 @@ uint64_t BlockCacheTracer::NextGetId() {
   return prev_value;
 }
 
-}  // namespace ROCKSDB_NAMESPACE
+}  // namespace rocksdb

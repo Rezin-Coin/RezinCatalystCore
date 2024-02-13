@@ -17,7 +17,7 @@
 #include "rocksdb/types.h"
 #include "utilities/blob_db/blob_log_format.h"
 
-namespace ROCKSDB_NAMESPACE {
+namespace rocksdb {
 
 class WritableFileWriter;
 
@@ -39,11 +39,12 @@ class Writer {
   Writer(std::unique_ptr<WritableFileWriter>&& dest, Env* env,
          Statistics* statistics, uint64_t log_number, uint64_t bpsync,
          bool use_fsync, uint64_t boffset = 0);
+
+  ~Writer() = default;
+
   // No copying allowed
   Writer(const Writer&) = delete;
   Writer& operator=(const Writer&) = delete;
-
-  ~Writer() = default;
 
   static void ConstructBlobHeader(std::string* buf, const Slice& key,
                                   const Slice& val, uint64_t expiration);
@@ -90,5 +91,5 @@ class Writer {
 };
 
 }  // namespace blob_db
-}  // namespace ROCKSDB_NAMESPACE
+}  // namespace rocksdb
 #endif  // ROCKSDB_LITE

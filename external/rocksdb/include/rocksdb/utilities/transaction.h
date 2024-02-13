@@ -14,7 +14,7 @@
 #include "rocksdb/db.h"
 #include "rocksdb/status.h"
 
-namespace ROCKSDB_NAMESPACE {
+namespace rocksdb {
 
 class Iterator;
 class TransactionDB;
@@ -52,10 +52,6 @@ class TransactionNotifier {
 //  -Support for using Transactions with DBWithTTL
 class Transaction {
  public:
-  // No copying allowed
-  Transaction(const Transaction&) = delete;
-  void operator=(const Transaction&) = delete;
-
   virtual ~Transaction() {}
 
   // If a transaction has a snapshot set, the transaction will ensure that
@@ -139,9 +135,7 @@ class Transaction {
   //
   // If this transaction was created by a TransactionDB(), Status::Expired()
   // may be returned if this transaction has lived for longer than
-  // TransactionOptions.expiration. Status::TxnNotPrepared() may be returned if
-  // TransactionOptions.skip_prepare is false and Prepare is not called on this
-  // transaction before Commit.
+  // TransactionOptions.expiration.
   virtual Status Commit() = 0;
 
   // Discard all batched writes in this transaction.
@@ -493,8 +487,7 @@ class Transaction {
     AWAITING_PREPARE = 1,
     PREPARED = 2,
     AWAITING_COMMIT = 3,
-    COMMITTED = 4,
-    COMMITED = COMMITTED, // old misspelled name
+    COMMITED = 4,
     AWAITING_ROLLBACK = 5,
     ROLLEDBACK = 6,
     LOCKS_STOLEN = 7,
@@ -536,8 +529,11 @@ class Transaction {
   friend class WriteUnpreparedTxnDB;
   friend class TransactionTest_TwoPhaseLogRollingTest_Test;
   friend class TransactionTest_TwoPhaseLogRollingTest2_Test;
+  // No copying allowed
+  Transaction(const Transaction&);
+  void operator=(const Transaction&);
 };
 
-}  // namespace ROCKSDB_NAMESPACE
+}  // namespace rocksdb
 
 #endif  // ROCKSDB_LITE

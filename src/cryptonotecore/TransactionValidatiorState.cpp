@@ -15,10 +15,9 @@ namespace CryptoNote
 
     bool hasIntersections(const TransactionValidatorState &destination, const TransactionValidatorState &source)
     {
-        return std::any_of(
-            source.spentKeyImages.begin(),
-            source.spentKeyImages.end(),
-            [&](const Crypto::KeyImage &ki) { return destination.spentKeyImages.count(ki) != 0; });
+        return std::any_of(source.spentKeyImages.begin(), source.spentKeyImages.end(), [&](const Crypto::KeyImage &ki) {
+            return destination.spentKeyImages.count(ki) != 0;
+        });
     }
 
     void excludeFromState(TransactionValidatorState &state, const CachedTransaction &cachedTransaction)

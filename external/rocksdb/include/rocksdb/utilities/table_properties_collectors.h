@@ -10,7 +10,7 @@
 
 #include "rocksdb/table_properties.h"
 
-namespace ROCKSDB_NAMESPACE {
+namespace rocksdb {
 
 // A factory of a table property collector that marks a SST
 // file as need-compaction when it observe at least "D" deletion
@@ -18,9 +18,9 @@ namespace ROCKSDB_NAMESPACE {
 class CompactOnDeletionCollectorFactory
     : public TablePropertiesCollectorFactory {
  public:
-  ~CompactOnDeletionCollectorFactory() {}
+  virtual ~CompactOnDeletionCollectorFactory() {}
 
-  TablePropertiesCollector* CreateTablePropertiesCollector(
+  virtual TablePropertiesCollector* CreateTablePropertiesCollector(
       TablePropertiesCollectorFactory::Context context) override;
 
   // Change the value of sliding_window_size "N"
@@ -34,11 +34,9 @@ class CompactOnDeletionCollectorFactory
     deletion_trigger_.store(deletion_trigger);
   }
 
-  const char* Name() const override {
+  virtual const char* Name() const override {
     return "CompactOnDeletionCollector";
   }
-
-  std::string ToString() const override;
 
  private:
   friend std::shared_ptr<CompactOnDeletionCollectorFactory>
@@ -71,6 +69,6 @@ class CompactOnDeletionCollectorFactory
 extern std::shared_ptr<CompactOnDeletionCollectorFactory>
 NewCompactOnDeletionCollectorFactory(size_t sliding_window_size,
                                      size_t deletion_trigger);
-}  // namespace ROCKSDB_NAMESPACE
+}  // namespace rocksdb
 
 #endif  // !ROCKSDB_LITE

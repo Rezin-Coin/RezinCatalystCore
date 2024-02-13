@@ -49,7 +49,8 @@ namespace CryptoNote
     {
       public:
         MesageQueueGuard(MessageQueueContainer &container, MessageQueue<MessageType> &messageQueue):
-            container(container), messageQueue(messageQueue)
+            container(container),
+            messageQueue(messageQueue)
         {
             container.addMessageQueue(messageQueue);
         }
@@ -67,7 +68,9 @@ namespace CryptoNote
 
     template<class MessageType>
     MessageQueue<MessageType>::MessageQueue(System::Dispatcher &dispatch):
-        dispatcher(dispatch), event(dispatch), stopped(false)
+        dispatcher(dispatch),
+        event(dispatch),
+        stopped(false)
     {
     }
 
@@ -107,12 +110,10 @@ namespace CryptoNote
 
     template<class MessageType> void MessageQueue<MessageType>::push(const MessageType &message)
     {
-        dispatcher.remoteSpawn(
-            [=]() mutable
-            {
-                messageQueue.push(std::move(message));
-                event.set();
-            });
+        dispatcher.remoteSpawn([=]() mutable {
+            messageQueue.push(std::move(message));
+            event.set();
+        });
     }
 
     template<class MessageType> void MessageQueue<MessageType>::stop()

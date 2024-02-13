@@ -85,8 +85,7 @@ namespace System
         }
 
         context = &timerContext;
-        dispatcher->getCurrentContext()->interruptProcedure = [&]
-        {
+        dispatcher->getCurrentContext()->interruptProcedure = [&] {
             assert(dispatcher != nullptr);
             assert(context != nullptr);
             OperationContext *timerContext = static_cast<OperationContext *>(context);

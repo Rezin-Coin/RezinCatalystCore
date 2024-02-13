@@ -92,8 +92,7 @@ namespace System
             {
                 throw std::runtime_error("Timer::sleep, epoll_ctl failed, " + lastErrorMessage());
             }
-            dispatcher->getCurrentContext()->interruptProcedure = [&]()
-            {
+            dispatcher->getCurrentContext()->interruptProcedure = [&]() {
                 assert(dispatcher != nullptr);
                 assert(context != nullptr);
                 OperationContext *timerContext = static_cast<OperationContext *>(context);

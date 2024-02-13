@@ -70,15 +70,12 @@ namespace CryptoNote
             BlockchainReadBatch readHashesBatch;
 
             std::set<uint32_t> blockIndexes;
-            std::for_each(
-                packedOuts.begin(),
-                packedOuts.end(),
-                [&blockIndexes](PackedOutIndex out) { blockIndexes.insert(out.blockIndex); });
-            std::for_each(
-                blockIndexes.begin(),
-                blockIndexes.end(),
-                [&readHashesBatch](uint32_t blockIndex)
-                { readHashesBatch.requestTransactionHashesByBlock(blockIndex); });
+            std::for_each(packedOuts.begin(), packedOuts.end(), [&blockIndexes](PackedOutIndex out) {
+                blockIndexes.insert(out.blockIndex);
+            });
+            std::for_each(blockIndexes.begin(), blockIndexes.end(), [&readHashesBatch](uint32_t blockIndex) {
+                readHashesBatch.requestTransactionHashesByBlock(blockIndex);
+            });
 
             auto dbResult = database.read(readHashesBatch);
             if (dbResult)
@@ -117,9 +114,9 @@ namespace CryptoNote
 
             BlockchainReadBatch transactionsBatch;
             std::for_each(
-                transactionHashes.begin(),
-                transactionHashes.end(),
-                [&transactionsBatch](const Crypto::Hash &hash) { transactionsBatch.requestCachedTransaction(hash); });
+                transactionHashes.begin(), transactionHashes.end(), [&transactionsBatch](const Crypto::Hash &hash) {
+                    transactionsBatch.requestCachedTransaction(hash);
+                });
             auto dbResult = database.read(transactionsBatch);
             if (dbResult)
             {
@@ -161,9 +158,9 @@ namespace CryptoNote
 
             BlockchainReadBatch transactionsBatch;
             std::for_each(
-                transactionHashes.begin(),
-                transactionHashes.end(),
-                [&transactionsBatch](const Crypto::Hash &hash) { transactionsBatch.requestCachedTransaction(hash); });
+                transactionHashes.begin(), transactionHashes.end(), [&transactionsBatch](const Crypto::Hash &hash) {
+                    transactionsBatch.requestCachedTransaction(hash);
+                });
             auto dbResult = database.read(transactionsBatch);
             if (dbResult)
             {
@@ -286,8 +283,11 @@ namespace CryptoNote
         size_t requestPaymentIdTransactionsCount(IDataBase &database, const Crypto::Hash &paymentId)
         {
             auto batch = BlockchainReadBatch().requestTransactionCountByPaymentId(paymentId);
+#if defined (USE_LEVELDB)
             auto error = database.read(batch);
-
+#else
+            auto error = database.readThreadSafe(batch);
+#endif
             if (error)
             {
                 throw std::system_error(error, "Error while reading transactions count by payment id");
@@ -358,7 +358,9 @@ namespace CryptoNote
                 std::function<PackedOutIndex(IBlockchainCache::Amount amount, uint32_t globalOutputIndex)> retriever_,
                 IBlockchainCache::Amount amount_,
                 uint32_t globalOutputIndex_):
-                retriever(retriever_), amount(amount_), globalOutputIndex(globalOutputIndex_)
+                retriever(retriever_),
+                amount(amount_),
+                globalOutputIndex(globalOutputIndex_)
             {
             }
 
@@ -1190,8 +1192,11 @@ namespace CryptoNote
     bool DatabaseBlockchainCache::checkIfSpent(const Crypto::KeyImage &keyImage, uint32_t blockIndex) const
     {
         auto batch = BlockchainReadBatch().requestBlockIndexBySpentKeyImage(keyImage);
+#if defined (USE_LEVELDB)
+        auto res = database.read(batch);
+#else
         auto res = database.readThreadSafe(batch);
-
+#endif
         if (res)
         {
             logger(Logging::ERROR) << "checkIfSpent failed, request to database failed: " << res.message();
@@ -1257,8 +1262,7 @@ namespace CryptoNote
             blockIndex,
             globalIndexes,
             [this, &publicKeys, blockIndex](
-                const CachedTransactionInfo &info, PackedOutIndex index, uint32_t globalIndex)
-            {
+                const CachedTransactionInfo &info, PackedOutIndex index, uint32_t globalIndex) {
                 if (!isTransactionSpendTimeUnlocked(info.unlockTime, blockIndex))
                 {
                     logger(Logging::DEBUGGING) << "extractKeyOutputKeys: output " << globalIndex << " is locked";
@@ -1296,8 +1300,7 @@ namespace CryptoNote
             amount,
             getTopBlockIndex(),
             globalIndexes,
-            [&outputReferences](const CachedTransactionInfo &info, PackedOutIndex index, uint32_t globalIndex)
-            {
+            [&outputReferences](const CachedTransactionInfo &info, PackedOutIndex index, uint32_t globalIndex) {
                 outputReferences.push_back(std::make_pair(info.transactionHash, index.outputIndex));
                 return ExtractOutputKeysResult::SUCCESS;
             });
@@ -1337,7 +1340,6 @@ namespace CryptoNote
         upgradeManager.addMajorBlockVersion(BLOCK_MAJOR_VERSION_4, currency.upgradeHeight(BLOCK_MAJOR_VERSION_4));
         upgradeManager.addMajorBlockVersion(BLOCK_MAJOR_VERSION_5, currency.upgradeHeight(BLOCK_MAJOR_VERSION_5));
         upgradeManager.addMajorBlockVersion(BLOCK_MAJOR_VERSION_6, currency.upgradeHeight(BLOCK_MAJOR_VERSION_6));
-        upgradeManager.addMajorBlockVersion(BLOCK_MAJOR_VERSION_7, currency.upgradeHeight(BLOCK_MAJOR_VERSION_7));
         return upgradeManager.getBlockMajorVersion(height);
     }
 
@@ -1700,11 +1702,9 @@ namespace CryptoNote
         auto begin = DbOutputConstIterator(getOutput, amount, 0);
         auto end = DbOutputConstIterator(getOutput, amount, outputsCount);
 
-        auto it = std::lower_bound(
-            begin,
-            end,
-            blockIndex,
-            [](const PackedOutIndex &output, uint32_t blockIndex) { return output.blockIndex < blockIndex; });
+        auto it = std::lower_bound(begin, end, blockIndex, [](const PackedOutIndex &output, uint32_t blockIndex) {
+            return output.blockIndex < blockIndex;
+        });
 
         size_t result = static_cast<size_t>(std::distance(begin, it));
         logger(Logging::DEBUGGING) << "Key outputs count for amount " << amount << " is " << result
@@ -2134,7 +2134,7 @@ namespace CryptoNote
 
         std::unordered_map<Crypto::Hash, std::vector<uint64_t>> indexes;
 
-        for (const auto &[txHash, transaction] : txs)
+        for (const auto [txHash, transaction] : txs)
         {
             indexes[txHash].assign(transaction.globalIndexes.begin(), transaction.globalIndexes.end());
         }
@@ -2228,13 +2228,12 @@ namespace CryptoNote
 
         BlockchainWriteBatch batch;
 
-        CachedBlockInfo blockInfo {
-            genesisBlock.getBlockHash(),
-            genesisBlock.getBlock().timestamp,
-            1,
-            minerReward,
-            1,
-            uint32_t(baseTransactionSize)};
+        CachedBlockInfo blockInfo {genesisBlock.getBlockHash(),
+                                   genesisBlock.getBlock().timestamp,
+                                   1,
+                                   minerReward,
+                                   1,
+                                   uint32_t(baseTransactionSize)};
 
         auto baseTransaction = genesisBlock.getBlock().baseTransaction;
         auto cachedBaseTransaction = CachedTransaction {std::move(baseTransaction)};

@@ -84,8 +84,7 @@ namespace System
         TimerContext timerContext {time, dispatcher->getCurrentContext(), false};
         context = &timerContext;
         dispatcher->addTimer(time, dispatcher->getCurrentContext());
-        dispatcher->getCurrentContext()->interruptProcedure = [&]()
-        {
+        dispatcher->getCurrentContext()->interruptProcedure = [&]() {
             assert(dispatcher != nullptr);
             assert(context != nullptr);
             TimerContext *timerContext = static_cast<TimerContext *>(context);

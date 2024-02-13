@@ -19,7 +19,7 @@
 #include "rocksdb/slice_transform.h"
 #include "util/hash.h"
 
-namespace ROCKSDB_NAMESPACE {
+namespace rocksdb {
 namespace {
 
 typedef const char* Key;
@@ -218,7 +218,8 @@ class HashLinkListRep : public MemTableRep {
   }
 
   size_t GetHash(const Slice& slice) const {
-    return fastrange64(GetSliceNPHash64(slice), bucket_size_);
+    return NPHash64(slice.data(), static_cast<int>(slice.size()), 0) %
+           bucket_size_;
   }
 
   Pointer* GetBucket(size_t i) const {
@@ -840,5 +841,5 @@ MemTableRepFactory* NewHashLinkListRepFactory(
       bucket_entries_logging_threshold, if_log_bucket_dist_when_flash);
 }
 
-}  // namespace ROCKSDB_NAMESPACE
+} // namespace rocksdb
 #endif  // ROCKSDB_LITE

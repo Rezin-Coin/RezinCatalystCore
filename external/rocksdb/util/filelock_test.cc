@@ -10,19 +10,18 @@
 #include <vector>
 #include "test_util/testharness.h"
 #include "util/coding.h"
-#include "util/string_util.h"
 
-namespace ROCKSDB_NAMESPACE {
+namespace rocksdb {
 
 class LockTest : public testing::Test {
  public:
   static LockTest* current_;
   std::string file_;
-  ROCKSDB_NAMESPACE::Env* env_;
+  rocksdb::Env* env_;
 
   LockTest()
       : file_(test::PerThreadDBPath("db_testlock_file")),
-        env_(ROCKSDB_NAMESPACE::Env::Default()) {
+        env_(rocksdb::Env::Default()) {
     current_ = this;
   }
 
@@ -121,11 +120,7 @@ TEST_F(LockTest, LockBySameThread) {
   ASSERT_TRUE( AssertFileIsLocked() );
 
   // re-acquire the lock on the same file. This should fail.
-  Status s = LockFile(&lock2);
-  ASSERT_TRUE(s.IsIOError());
-  // Validate that error message contains current thread ID.
-  ASSERT_TRUE(s.ToString().find(ToString(Env::Default()->GetThreadID())) !=
-              std::string::npos);
+  ASSERT_TRUE(LockFile(&lock2).IsIOError());
 
   // check the file is locked
   ASSERT_TRUE( AssertFileIsLocked() );
@@ -138,7 +133,7 @@ TEST_F(LockTest, LockBySameThread) {
 
 }
 
-}  // namespace ROCKSDB_NAMESPACE
+}  // namespace rocksdb
 
 int main(int argc, char** argv) {
   ::testing::InitGoogleTest(&argc, argv);

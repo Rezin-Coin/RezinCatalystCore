@@ -31,10 +31,9 @@ int FLAGS_min_write_buffer_number_to_merge = 7;
 bool FLAGS_verbose = false;
 
 // Path to the database on file system
-const std::string kDbName =
-    ROCKSDB_NAMESPACE::test::PerThreadDBPath("perf_context_test");
+const std::string kDbName = rocksdb::test::PerThreadDBPath("perf_context_test");
 
-namespace ROCKSDB_NAMESPACE {
+namespace rocksdb {
 
 std::shared_ptr<DB> OpenDb(bool read_only = false) {
     DB* db;
@@ -48,8 +47,7 @@ std::shared_ptr<DB> OpenDb(bool read_only = false) {
 
     if (FLAGS_use_set_based_memetable) {
 #ifndef ROCKSDB_LITE
-      options.prefix_extractor.reset(
-          ROCKSDB_NAMESPACE::NewFixedPrefixTransform(0));
+      options.prefix_extractor.reset(rocksdb::NewFixedPrefixTransform(0));
       options.memtable_factory.reset(NewHashSkipListRepFactory());
 #endif  // ROCKSDB_LITE
     }
@@ -251,7 +249,7 @@ void ProfileQueries(bool enabled_time = false) {
   }
 
   if (FLAGS_random_key) {
-    RandomShuffle(std::begin(keys), std::end(keys));
+    std::random_shuffle(keys.begin(), keys.end());
   }
 #ifndef NDEBUG
   ThreadStatusUtil::TEST_SetStateDelay(ThreadStatus::STATE_MUTEX_WAIT, 1U);
@@ -524,7 +522,7 @@ TEST_F(PerfContextTest, SeekKeyComparison) {
   }
 
   if (FLAGS_random_key) {
-    RandomShuffle(std::begin(keys), std::end(keys));
+    std::random_shuffle(keys.begin(), keys.end());
   }
 
   HistogramImpl hist_put_time;
@@ -587,7 +585,7 @@ TEST_F(PerfContextTest, DBMutexLockCounter) {
     for (int c = 0; c < 2; ++c) {
     InstrumentedMutex mutex(nullptr, Env::Default(), stats_code[c]);
     mutex.Lock();
-    ROCKSDB_NAMESPACE::port::Thread child_thread([&] {
+    rocksdb::port::Thread child_thread([&] {
       SetPerfLevel(perf_level_test);
       get_perf_context()->Reset();
       ASSERT_EQ(get_perf_context()->db_mutex_lock_nanos, 0);
@@ -940,7 +938,7 @@ TEST_F(PerfContextTest, CPUTimer) {
     ASSERT_EQ(count, get_perf_context()->iter_seek_cpu_nanos);
   }
 }
-}  // namespace ROCKSDB_NAMESPACE
+}  // namespace rocksdb
 
 int main(int argc, char** argv) {
   ::testing::InitGoogleTest(&argc, argv);

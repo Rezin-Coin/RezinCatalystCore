@@ -17,7 +17,6 @@
 #define TX_EXTRA_TAG_PUBKEY 0x01
 #define TX_EXTRA_NONCE 0x02
 #define TX_EXTRA_MERGE_MINING_TAG 0x03
-#define TX_EXTRA_POOL 0x07
 
 #define TX_EXTRA_NONCE_PAYMENT_ID 0x00
 
@@ -58,10 +57,9 @@ namespace CryptoNote
     template<typename T>
     bool findTransactionExtraFieldByType(const std::vector<TransactionExtraField> &tx_extra_fields, T &field)
     {
-        auto it = std::find_if(
-            tx_extra_fields.begin(),
-            tx_extra_fields.end(),
-            [](const TransactionExtraField &f) { return typeid(T) == f.type(); });
+        auto it = std::find_if(tx_extra_fields.begin(), tx_extra_fields.end(), [](const TransactionExtraField &f) {
+            return typeid(T) == f.type();
+        });
 
         if (tx_extra_fields.end() == it)
         {
@@ -85,8 +83,6 @@ namespace CryptoNote
     bool addTransactionPublicKeyToExtra(std::vector<uint8_t> &tx_extra, const Crypto::PublicKey &tx_pub_key);
 
     bool addExtraNonceToTransactionExtra(std::vector<uint8_t> &tx_extra, const BinaryArray &extra_nonce);
-
-    bool addPoolNonceToTransactionExtra(std::vector<uint8_t> &tx_extra, const BinaryArray &extra_nonce);
 
     void setPaymentIdToTransactionExtraNonce(BinaryArray &extra_nonce, const Crypto::Hash &payment_id);
 

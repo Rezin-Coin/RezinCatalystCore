@@ -11,9 +11,7 @@
 #include <stdexcept>
 #include <vector>
 
-#include "rocksdb/rocksdb_namespace.h"
-
-namespace ROCKSDB_NAMESPACE {
+namespace rocksdb {
 
 #ifdef ROCKSDB_LITE
 template <class T, size_t kSize = 8>
@@ -122,19 +120,26 @@ class autovector {
     }
 
     // -- Reference
-    reference operator*() const {
+    reference operator*() {
       assert(vect_->size() >= index_);
       return (*vect_)[index_];
     }
 
-    pointer operator->() const {
+    const_reference operator*() const {
+      assert(vect_->size() >= index_);
+      return (*vect_)[index_];
+    }
+
+    pointer operator->() {
       assert(vect_->size() >= index_);
       return &(*vect_)[index_];
     }
 
-    reference operator[](difference_type len) const {
-      return *(*this + len);
+    const_pointer operator->() const {
+      assert(vect_->size() >= index_);
+      return &(*vect_)[index_];
     }
+
 
     // -- Logical Operators
     bool operator==(const self_type& other) const {
@@ -358,4 +363,4 @@ autovector<T, kSize>& autovector<T, kSize>::assign(const autovector& other) {
   return *this;
 }
 #endif  // ROCKSDB_LITE
-}  // namespace ROCKSDB_NAMESPACE
+}  // namespace rocksdb

@@ -10,7 +10,7 @@
 #include "test_util/testharness.h"
 #include "test_util/testutil.h"
 
-namespace ROCKSDB_NAMESPACE {
+namespace rocksdb {
 namespace {
 const std::string kBlockKeyPrefix = "test-block-";
 const std::string kRefKeyPrefix = "test-get-";
@@ -27,7 +27,7 @@ class CacheSimulatorTest : public testing::Test {
   const size_t kNumBlocks = 5;
   const size_t kValueSize = 1000;
 
-  CacheSimulatorTest() { env_ = ROCKSDB_NAMESPACE::Env::Default(); }
+  CacheSimulatorTest() { env_ = rocksdb::Env::Default(); }
 
   BlockCacheTraceRecord GenerateGetRecord(uint64_t getid) {
     BlockCacheTraceRecord record;
@@ -313,13 +313,10 @@ TEST_F(CacheSimulatorTest, HybridRowBlockCacheSimulatorGetTest) {
   get.sst_fd_number = 0;
   get.get_from_user_specified_snapshot = Boolean::kFalse;
 
-  LRUCacheOptions co;
-  co.capacity = 16;
-  co.num_shard_bits = 1;
-  co.strict_capacity_limit = false;
-  co.high_pri_pool_ratio = 0;
-  co.metadata_charge_policy = kDontChargeCacheMetadata;
-  std::shared_ptr<Cache> sim_cache = NewLRUCache(co);
+  std::shared_ptr<Cache> sim_cache =
+      NewLRUCache(/*capacity=*/16, /*num_shard_bits=*/1,
+                  /*strict_capacity_limit=*/false,
+                  /*high_pri_pool_ratio=*/0);
   std::unique_ptr<HybridRowBlockCacheSimulator> cache_simulator(
       new HybridRowBlockCacheSimulator(
           nullptr, sim_cache, /*insert_blocks_row_kvpair_misses=*/true));
@@ -486,7 +483,7 @@ TEST_F(CacheSimulatorTest, GhostHybridRowBlockCacheSimulator) {
                     cache_simulator->miss_ratio_stats().user_miss_ratio()));
 }
 
-}  // namespace ROCKSDB_NAMESPACE
+}  // namespace rocksdb
 
 int main(int argc, char** argv) {
   ::testing::InitGoogleTest(&argc, argv);

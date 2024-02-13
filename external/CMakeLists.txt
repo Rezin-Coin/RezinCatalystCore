@@ -19,7 +19,7 @@ add_subdirectory(snappy)
 if (MSVC)
     add_subdirectory(rocksDB EXCLUDE_FROM_ALL)
     add_subdirectory(levelDB EXCLUDE_FROM_ALL)
-    set_property(TARGET upnpc-static cryptopp-static rocksdb leveldb snappy zstd lz4 argon2 PROPERTY FOLDER "external")
+    set_property(TARGET upnpc-static cryptopp-static rocksdb zstd lz4 leveldb snappy argon2 PROPERTY FOLDER "external")
 elseif (NOT MSVC)
     set_property(TARGET upnpc-static cryptopp-static snappy zstd lz4 argon2 PROPERTY FOLDER "external")
     add_custom_target(

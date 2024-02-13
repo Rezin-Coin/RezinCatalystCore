@@ -26,7 +26,7 @@
 #include "util/coding.h"
 #include "util/user_comparator_wrapper.h"
 
-namespace ROCKSDB_NAMESPACE {
+namespace rocksdb {
 
 // The file declares data structures and functions that deal with internal
 // keys.
@@ -104,7 +104,6 @@ struct ParsedInternalKey {
   ParsedInternalKey()
       : sequence(kMaxSequenceNumber)  // Make code analyzer happy
   {}  // Intentionally left uninitialized (for speed)
-  // u contains timestamp if user timestamp feature is enabled.
   ParsedInternalKey(const Slice& u, const SequenceNumber& seq, ValueType t)
       : user_key(u), sequence(seq), type(t) {}
   std::string DebugString(bool hex = false) const;
@@ -133,12 +132,6 @@ EntryType GetEntryType(ValueType value_type);
 // Append the serialization of "key" to *result.
 extern void AppendInternalKey(std::string* result,
                               const ParsedInternalKey& key);
-
-// Append the serialization of "key" to *result, replacing the original
-// timestamp with argument ts.
-extern void AppendInternalKeyWithDifferentTimestamp(
-    std::string* result, const ParsedInternalKey& key, const Slice& ts);
-
 // Serialized internal key consists of user key followed by footer.
 // This function appends the footer to *result, assuming that *result already
 // contains the user key at the end.
@@ -169,11 +162,6 @@ inline Slice StripTimestampFromUserKey(const Slice& user_key, size_t ts_sz) {
   return Slice(user_key.data(), user_key.size() - ts_sz);
 }
 
-inline Slice ExtractTimestampFromUserKey(const Slice& user_key, size_t ts_sz) {
-  assert(user_key.size() >= ts_sz);
-  return Slice(user_key.data() + user_key.size() - ts_sz, ts_sz);
-}
-
 inline uint64_t ExtractInternalKeyFooter(const Slice& internal_key) {
   assert(internal_key.size() >= 8);
   const size_t n = internal_key.size();
@@ -199,8 +187,7 @@ class InternalKeyComparator
 
  public:
   explicit InternalKeyComparator(const Comparator* c)
-      : Comparator(c->timestamp_size()),
-        user_comparator_(c),
+      : user_comparator_(c),
         name_("rocksdb.InternalKeyComparator:" +
               std::string(user_comparator_.Name())) {}
   virtual ~InternalKeyComparator() {}
@@ -339,9 +326,6 @@ class IterKey {
         key_size_(0),
         buf_size_(sizeof(space_)),
         is_user_key_(true) {}
-  // No copying allowed
-  IterKey(const IterKey&) = delete;
-  void operator=(const IterKey&) = delete;
 
   ~IterKey() { ResetBuffer(); }
 
@@ -447,31 +431,24 @@ class IterKey {
 
   void SetInternalKey(const Slice& key_prefix, const Slice& user_key,
                       SequenceNumber s,
-                      ValueType value_type = kValueTypeForSeek,
-                      const Slice* ts = nullptr) {
+                      ValueType value_type = kValueTypeForSeek) {
     size_t psize = key_prefix.size();
     size_t usize = user_key.size();
-    size_t ts_sz = (ts != nullptr ? ts->size() : 0);
-    EnlargeBufferIfNeeded(psize + usize + sizeof(uint64_t) + ts_sz);
+    EnlargeBufferIfNeeded(psize + usize + sizeof(uint64_t));
     if (psize > 0) {
       memcpy(buf_, key_prefix.data(), psize);
     }
     memcpy(buf_ + psize, user_key.data(), usize);
-    if (ts) {
-      memcpy(buf_ + psize + usize, ts->data(), ts_sz);
-    }
-    EncodeFixed64(buf_ + usize + psize + ts_sz,
-                  PackSequenceAndType(s, value_type));
+    EncodeFixed64(buf_ + usize + psize, PackSequenceAndType(s, value_type));
 
     key_ = buf_;
-    key_size_ = psize + usize + sizeof(uint64_t) + ts_sz;
+    key_size_ = psize + usize + sizeof(uint64_t);
     is_user_key_ = false;
   }
 
   void SetInternalKey(const Slice& user_key, SequenceNumber s,
-                      ValueType value_type = kValueTypeForSeek,
-                      const Slice* ts = nullptr) {
-    SetInternalKey(Slice(), user_key, s, value_type, ts);
+                      ValueType value_type = kValueTypeForSeek) {
+    SetInternalKey(Slice(), user_key, s, value_type);
   }
 
   void Reserve(size_t size) {
@@ -546,6 +523,10 @@ class IterKey {
   }
 
   void EnlargeBuffer(size_t key_size);
+
+  // No copying allowed
+  IterKey(const IterKey&) = delete;
+  void operator=(const IterKey&) = delete;
 };
 
 // Convert from a SliceTranform of user keys, to a SliceTransform of
@@ -688,4 +669,4 @@ struct ParsedInternalKeyComparator {
   const InternalKeyComparator* cmp;
 };
 
-}  // namespace ROCKSDB_NAMESPACE
+}  // namespace rocksdb

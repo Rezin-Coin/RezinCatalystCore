@@ -6,10 +6,7 @@
 // Copyright (c) 2011 The LevelDB Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file. See the AUTHORS file for names of contributors.
-
-// GetUniqueIdFromFile is not implemented on Windows. Persistent cache
-// breaks when that function is not implemented
-#if !defined(ROCKSDB_LITE) && !defined(OS_WIN)
+#ifndef ROCKSDB_LITE
 
 #include "utilities/persistent_cache/persistent_cache_test.h"
 
@@ -19,7 +16,7 @@
 
 #include "utilities/persistent_cache/block_cache_tier.h"
 
-namespace ROCKSDB_NAMESPACE {
+namespace rocksdb {
 
 static const double kStressFactor = .125;
 
@@ -27,7 +24,7 @@ static const double kStressFactor = .125;
 static void OnOpenForRead(void* arg) {
   int* val = static_cast<int*>(arg);
   *val &= ~O_DIRECT;
-  ROCKSDB_NAMESPACE::SyncPoint::GetInstance()->SetCallBack(
+  rocksdb::SyncPoint::GetInstance()->SetCallBack(
       "NewRandomAccessFile:O_DIRECT",
       std::bind(OnOpenForRead, std::placeholders::_1));
 }
@@ -35,7 +32,7 @@ static void OnOpenForRead(void* arg) {
 static void OnOpenForWrite(void* arg) {
   int* val = static_cast<int*>(arg);
   *val &= ~O_DIRECT;
-  ROCKSDB_NAMESPACE::SyncPoint::GetInstance()->SetCallBack(
+  rocksdb::SyncPoint::GetInstance()->SetCallBack(
       "NewWritableFile:O_DIRECT",
       std::bind(OnOpenForWrite, std::placeholders::_1));
 }
@@ -137,11 +134,11 @@ std::unique_ptr<PersistentTieredCache> NewTieredCache(
 PersistentCacheTierTest::PersistentCacheTierTest()
     : path_(test::PerThreadDBPath("cache_test")) {
 #ifdef OS_LINUX
-  ROCKSDB_NAMESPACE::SyncPoint::GetInstance()->EnableProcessing();
-  ROCKSDB_NAMESPACE::SyncPoint::GetInstance()->SetCallBack(
-      "NewRandomAccessFile:O_DIRECT", OnOpenForRead);
-  ROCKSDB_NAMESPACE::SyncPoint::GetInstance()->SetCallBack(
-      "NewWritableFile:O_DIRECT", OnOpenForWrite);
+  rocksdb::SyncPoint::GetInstance()->EnableProcessing();
+  rocksdb::SyncPoint::GetInstance()->SetCallBack("NewRandomAccessFile:O_DIRECT",
+                                                 OnOpenForRead);
+  rocksdb::SyncPoint::GetInstance()->SetCallBack("NewWritableFile:O_DIRECT",
+                                                 OnOpenForWrite);
 #endif
 }
 
@@ -150,16 +147,17 @@ TEST_F(PersistentCacheTierTest, DISABLED_BlockCacheInsertWithFileCreateError) {
   cache_ = NewBlockCache(Env::Default(), path_,
                          /*size=*/std::numeric_limits<uint64_t>::max(),
                          /*direct_writes=*/ false);
-  ROCKSDB_NAMESPACE::SyncPoint::GetInstance()->SetCallBack(
-      "BlockCacheTier::NewCacheFile:DeleteDir", OnDeleteDir);
+  rocksdb::SyncPoint::GetInstance()->SetCallBack( 
+    "BlockCacheTier::NewCacheFile:DeleteDir", OnDeleteDir);
 
   RunNegativeInsertTest(/*nthreads=*/ 1,
                         /*max_keys*/
                           static_cast<size_t>(10 * 1024 * kStressFactor));
 
-  ROCKSDB_NAMESPACE::SyncPoint::GetInstance()->ClearAllCallBacks();
+  rocksdb::SyncPoint::GetInstance()->ClearAllCallBacks();
 }
 
+#if defined(TRAVIS) || defined(ROCKSDB_VALGRIND_RUN)
 // Travis is unable to handle the normal version of the tests running out of
 // fds, out of space and timeouts. This is an easier version of the test
 // specifically written for Travis
@@ -176,10 +174,9 @@ TEST_F(PersistentCacheTierTest, BasicTest) {
                           /*memory_size=*/static_cast<size_t>(1 * 1024 * 1024));
   RunInsertTest(/*nthreads=*/1, /*max_keys=*/1024);
 }
-
+#else
 // Volatile cache tests
-// DISABLED for now (somewhat expensive)
-TEST_F(PersistentCacheTierTest, DISABLED_VolatileCacheInsert) {
+TEST_F(PersistentCacheTierTest, VolatileCacheInsert) {
   for (auto nthreads : {1, 5}) {
     for (auto max_keys :
          {10 * 1024 * kStressFactor, 1 * 1024 * 1024 * kStressFactor}) {
@@ -189,8 +186,7 @@ TEST_F(PersistentCacheTierTest, DISABLED_VolatileCacheInsert) {
   }
 }
 
-// DISABLED for now (somewhat expensive)
-TEST_F(PersistentCacheTierTest, DISABLED_VolatileCacheInsertWithEviction) {
+TEST_F(PersistentCacheTierTest, VolatileCacheInsertWithEviction) {
   for (auto nthreads : {1, 5}) {
     for (auto max_keys : {1 * 1024 * 1024 * kStressFactor}) {
       cache_ = std::make_shared<VolatileCacheTier>(
@@ -201,8 +197,7 @@ TEST_F(PersistentCacheTierTest, DISABLED_VolatileCacheInsertWithEviction) {
 }
 
 // Block cache tests
-// DISABLED for now (expensive)
-TEST_F(PersistentCacheTierTest, DISABLED_BlockCacheInsert) {
+TEST_F(PersistentCacheTierTest, BlockCacheInsert) {
   for (auto direct_writes : {true, false}) {
     for (auto nthreads : {1, 5}) {
       for (auto max_keys :
@@ -216,8 +211,7 @@ TEST_F(PersistentCacheTierTest, DISABLED_BlockCacheInsert) {
   }
 }
 
-// DISABLED for now (somewhat expensive)
-TEST_F(PersistentCacheTierTest, DISABLED_BlockCacheInsertWithEviction) {
+TEST_F(PersistentCacheTierTest, BlockCacheInsertWithEviction) {
   for (auto nthreads : {1, 5}) {
     for (auto max_keys : {1 * 1024 * 1024 * kStressFactor}) {
       cache_ = NewBlockCache(Env::Default(), path_,
@@ -228,8 +222,7 @@ TEST_F(PersistentCacheTierTest, DISABLED_BlockCacheInsertWithEviction) {
 }
 
 // Tiered cache tests
-// DISABLED for now (expensive)
-TEST_F(PersistentCacheTierTest, DISABLED_TieredCacheInsert) {
+TEST_F(PersistentCacheTierTest, TieredCacheInsert) {
   for (auto nthreads : {1, 5}) {
     for (auto max_keys :
          {10 * 1024 * kStressFactor, 1 * 1024 * 1024 * kStressFactor}) {
@@ -242,8 +235,7 @@ TEST_F(PersistentCacheTierTest, DISABLED_TieredCacheInsert) {
 
 // the tests causes a lot of file deletions which Travis limited testing
 // environment cannot handle
-// DISABLED for now (somewhat expensive)
-TEST_F(PersistentCacheTierTest, DISABLED_TieredCacheInsertWithEviction) {
+TEST_F(PersistentCacheTierTest, TieredCacheInsertWithEviction) {
   for (auto nthreads : {1, 5}) {
     for (auto max_keys : {1 * 1024 * 1024 * kStressFactor}) {
       cache_ = NewTieredCache(
@@ -254,6 +246,7 @@ TEST_F(PersistentCacheTierTest, DISABLED_TieredCacheInsertWithEviction) {
     }
   }
 }
+#endif
 
 std::shared_ptr<PersistentCacheTier> MakeVolatileCache(
     const std::string& /*dbname*/) {
@@ -277,8 +270,8 @@ static void UniqueIdCallback(void* arg) {
     *result = 0;
   }
 
-  ROCKSDB_NAMESPACE::SyncPoint::GetInstance()->ClearTrace();
-  ROCKSDB_NAMESPACE::SyncPoint::GetInstance()->SetCallBack(
+  rocksdb::SyncPoint::GetInstance()->ClearTrace();
+  rocksdb::SyncPoint::GetInstance()->SetCallBack(
       "GetUniqueIdFromFile:FS_IOC_GETVERSION", UniqueIdCallback);
 }
 #endif
@@ -300,11 +293,11 @@ TEST_F(PersistentCacheTierTest, FactoryTest) {
 
 PersistentCacheDBTest::PersistentCacheDBTest() : DBTestBase("/cache_test") {
 #ifdef OS_LINUX
-  ROCKSDB_NAMESPACE::SyncPoint::GetInstance()->EnableProcessing();
-  ROCKSDB_NAMESPACE::SyncPoint::GetInstance()->SetCallBack(
+  rocksdb::SyncPoint::GetInstance()->EnableProcessing();
+  rocksdb::SyncPoint::GetInstance()->SetCallBack(
       "GetUniqueIdFromFile:FS_IOC_GETVERSION", UniqueIdCallback);
-  ROCKSDB_NAMESPACE::SyncPoint::GetInstance()->SetCallBack(
-      "NewRandomAccessFile:O_DIRECT", OnOpenForRead);
+  rocksdb::SyncPoint::GetInstance()->SetCallBack("NewRandomAccessFile:O_DIRECT",
+                                                 OnOpenForRead);
 #endif
 }
 
@@ -312,6 +305,9 @@ PersistentCacheDBTest::PersistentCacheDBTest() : DBTestBase("/cache_test") {
 void PersistentCacheDBTest::RunTest(
     const std::function<std::shared_ptr<PersistentCacheTier>(bool)>& new_pcache,
     const size_t max_keys = 100 * 1024, const size_t max_usecase = 5) {
+  if (!Snappy_Supported()) {
+    return;
+  }
 
   // number of insertion interations
   int num_iter = static_cast<int>(max_keys * kStressFactor);
@@ -320,7 +316,7 @@ void PersistentCacheDBTest::RunTest(
     Options options;
     options.write_buffer_size =
       static_cast<size_t>(64 * 1024 * kStressFactor);  // small write buffer
-    options.statistics = ROCKSDB_NAMESPACE::CreateDBStatistics();
+    options.statistics = rocksdb::CreateDBStatistics();
     options = CurrentOptions(options);
 
     // setup page cache
@@ -439,39 +435,37 @@ void PersistentCacheDBTest::RunTest(
   }
 }
 
+#if defined(TRAVIS) || defined(ROCKSDB_VALGRIND_RUN)
 // Travis is unable to handle the normal version of the tests running out of
 // fds, out of space and timeouts. This is an easier version of the test
-// specifically written for Travis.
-// Now used generally because main tests are too expensive as unit tests.
+// specifically written for Travis
 TEST_F(PersistentCacheDBTest, BasicTest) {
   RunTest(std::bind(&MakeBlockCache, dbname_), /*max_keys=*/1024,
           /*max_usecase=*/1);
 }
-
+#else
 // test table with block page cache
-// DISABLED for now (very expensive, especially memory)
-TEST_F(PersistentCacheDBTest, DISABLED_BlockCacheTest) {
+TEST_F(PersistentCacheDBTest, BlockCacheTest) {
   RunTest(std::bind(&MakeBlockCache, dbname_));
 }
 
 // test table with volatile page cache
-// DISABLED for now (very expensive, especially memory)
-TEST_F(PersistentCacheDBTest, DISABLED_VolatileCacheTest) {
+TEST_F(PersistentCacheDBTest, VolatileCacheTest) {
   RunTest(std::bind(&MakeVolatileCache, dbname_));
 }
 
 // test table with tiered page cache
-// DISABLED for now (very expensive, especially memory)
-TEST_F(PersistentCacheDBTest, DISABLED_TieredCacheTest) {
+TEST_F(PersistentCacheDBTest, TieredCacheTest) {
   RunTest(std::bind(&MakeTieredCache, dbname_));
 }
+#endif
 
-}  // namespace ROCKSDB_NAMESPACE
+}  // namespace rocksdb
 
 int main(int argc, char** argv) {
   ::testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();
 }
-#else   // !defined(ROCKSDB_LITE) && !defined(OS_WIN)
+#else
 int main() { return 0; }
-#endif  // !defined(ROCKSDB_LITE) && !defined(OS_WIN)
+#endif

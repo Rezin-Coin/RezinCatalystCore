@@ -11,9 +11,8 @@
 #include "test_util/sync_point.h"
 #include "test_util/testharness.h"
 #include "util/coding.h"
-#include "util/string_util.h"
 
-namespace ROCKSDB_NAMESPACE {
+namespace rocksdb {
 
 static void TestEncodeDecode(const VersionEdit& edit) {
   std::string encoded, encoded2;
@@ -37,8 +36,7 @@ TEST_F(VersionEditTest, EncodeDecode) {
     edit.AddFile(3, kBig + 300 + i, kBig32Bit + 400 + i, 0,
                  InternalKey("foo", kBig + 500 + i, kTypeValue),
                  InternalKey("zoo", kBig + 600 + i, kTypeDeletion),
-                 kBig + 500 + i, kBig + 600 + i, false, kInvalidBlobFileNumber,
-                 888, 678, "234", "crc32c");
+                 kBig + 500 + i, kBig + 600 + i, false);
     edit.DeleteFile(4, kBig + 700 + i);
   }
 
@@ -55,24 +53,13 @@ TEST_F(VersionEditTest, EncodeDecodeNewFile4) {
   VersionEdit edit;
   edit.AddFile(3, 300, 3, 100, InternalKey("foo", kBig + 500, kTypeValue),
                InternalKey("zoo", kBig + 600, kTypeDeletion), kBig + 500,
-               kBig + 600, true, kInvalidBlobFileNumber,
-               kUnknownOldestAncesterTime, kUnknownFileCreationTime,
-               kUnknownFileChecksum, kUnknownFileChecksumFuncName);
+               kBig + 600, true);
   edit.AddFile(4, 301, 3, 100, InternalKey("foo", kBig + 501, kTypeValue),
                InternalKey("zoo", kBig + 601, kTypeDeletion), kBig + 501,
-               kBig + 601, false, kInvalidBlobFileNumber,
-               kUnknownOldestAncesterTime, kUnknownFileCreationTime,
-               kUnknownFileChecksum, kUnknownFileChecksumFuncName);
+               kBig + 601, false);
   edit.AddFile(5, 302, 0, 100, InternalKey("foo", kBig + 502, kTypeValue),
                InternalKey("zoo", kBig + 602, kTypeDeletion), kBig + 502,
-               kBig + 602, true, kInvalidBlobFileNumber, 666, 888,
-               kUnknownFileChecksum, kUnknownFileChecksumFuncName);
-  edit.AddFile(5, 303, 0, 100, InternalKey("foo", kBig + 503, kTypeBlobIndex),
-               InternalKey("zoo", kBig + 603, kTypeBlobIndex), kBig + 503,
-               kBig + 603, true, 1001, kUnknownOldestAncesterTime,
-               kUnknownFileCreationTime, kUnknownFileChecksum,
-               kUnknownFileChecksumFuncName);
-  ;
+               kBig + 602, true);
 
   edit.DeleteFile(4, 700);
 
@@ -91,18 +78,9 @@ TEST_F(VersionEditTest, EncodeDecodeNewFile4) {
   ASSERT_TRUE(new_files[0].second.marked_for_compaction);
   ASSERT_TRUE(!new_files[1].second.marked_for_compaction);
   ASSERT_TRUE(new_files[2].second.marked_for_compaction);
-  ASSERT_TRUE(new_files[3].second.marked_for_compaction);
-  ASSERT_EQ(3u, new_files[0].second.fd.GetPathId());
-  ASSERT_EQ(3u, new_files[1].second.fd.GetPathId());
-  ASSERT_EQ(0u, new_files[2].second.fd.GetPathId());
-  ASSERT_EQ(0u, new_files[3].second.fd.GetPathId());
-  ASSERT_EQ(kInvalidBlobFileNumber,
-            new_files[0].second.oldest_blob_file_number);
-  ASSERT_EQ(kInvalidBlobFileNumber,
-            new_files[1].second.oldest_blob_file_number);
-  ASSERT_EQ(kInvalidBlobFileNumber,
-            new_files[2].second.oldest_blob_file_number);
-  ASSERT_EQ(1001, new_files[3].second.oldest_blob_file_number);
+  ASSERT_EQ(3, new_files[0].second.fd.GetPathId());
+  ASSERT_EQ(3, new_files[1].second.fd.GetPathId());
+  ASSERT_EQ(0, new_files[2].second.fd.GetPathId());
 }
 
 TEST_F(VersionEditTest, ForwardCompatibleNewFile4) {
@@ -110,13 +88,10 @@ TEST_F(VersionEditTest, ForwardCompatibleNewFile4) {
   VersionEdit edit;
   edit.AddFile(3, 300, 3, 100, InternalKey("foo", kBig + 500, kTypeValue),
                InternalKey("zoo", kBig + 600, kTypeDeletion), kBig + 500,
-               kBig + 600, true, kInvalidBlobFileNumber,
-               kUnknownOldestAncesterTime, kUnknownFileCreationTime,
-               kUnknownFileChecksum, kUnknownFileChecksumFuncName);
+               kBig + 600, true);
   edit.AddFile(4, 301, 3, 100, InternalKey("foo", kBig + 501, kTypeValue),
                InternalKey("zoo", kBig + 601, kTypeDeletion), kBig + 501,
-               kBig + 601, false, kInvalidBlobFileNumber, 686, 868, "234",
-               "crc32c");
+               kBig + 601, false);
   edit.DeleteFile(4, 700);
 
   edit.SetComparatorName("foo");
@@ -128,7 +103,7 @@ TEST_F(VersionEditTest, ForwardCompatibleNewFile4) {
 
   // Call back function to add extra customized builds.
   bool first = true;
-  ROCKSDB_NAMESPACE::SyncPoint::GetInstance()->SetCallBack(
+  rocksdb::SyncPoint::GetInstance()->SetCallBack(
       "VersionEdit::EncodeTo:NewFile4:CustomizeFields", [&](void* arg) {
         std::string* str = reinterpret_cast<std::string*>(arg);
         PutVarint32(str, 33);
@@ -141,9 +116,9 @@ TEST_F(VersionEditTest, ForwardCompatibleNewFile4) {
           PutLengthPrefixedSlice(str, str2);
         }
       });
-  ROCKSDB_NAMESPACE::SyncPoint::GetInstance()->EnableProcessing();
+  rocksdb::SyncPoint::GetInstance()->EnableProcessing();
   edit.EncodeTo(&encoded);
-  ROCKSDB_NAMESPACE::SyncPoint::GetInstance()->DisableProcessing();
+  rocksdb::SyncPoint::GetInstance()->DisableProcessing();
 
   VersionEdit parsed;
   Status s = parsed.DecodeFrom(encoded);
@@ -152,8 +127,8 @@ TEST_F(VersionEditTest, ForwardCompatibleNewFile4) {
   auto& new_files = parsed.GetNewFiles();
   ASSERT_TRUE(new_files[0].second.marked_for_compaction);
   ASSERT_TRUE(!new_files[1].second.marked_for_compaction);
-  ASSERT_EQ(3u, new_files[0].second.fd.GetPathId());
-  ASSERT_EQ(3u, new_files[1].second.fd.GetPathId());
+  ASSERT_EQ(3, new_files[0].second.fd.GetPathId());
+  ASSERT_EQ(3, new_files[1].second.fd.GetPathId());
   ASSERT_EQ(1u, parsed.GetDeletedFiles().size());
 }
 
@@ -162,9 +137,7 @@ TEST_F(VersionEditTest, NewFile4NotSupportedField) {
   VersionEdit edit;
   edit.AddFile(3, 300, 3, 100, InternalKey("foo", kBig + 500, kTypeValue),
                InternalKey("zoo", kBig + 600, kTypeDeletion), kBig + 500,
-               kBig + 600, true, kInvalidBlobFileNumber,
-               kUnknownOldestAncesterTime, kUnknownFileCreationTime,
-               kUnknownFileChecksum, kUnknownFileChecksumFuncName);
+               kBig + 600, true);
 
   edit.SetComparatorName("foo");
   edit.SetLogNumber(kBig + 100);
@@ -174,15 +147,15 @@ TEST_F(VersionEditTest, NewFile4NotSupportedField) {
   std::string encoded;
 
   // Call back function to add extra customized builds.
-  ROCKSDB_NAMESPACE::SyncPoint::GetInstance()->SetCallBack(
+  rocksdb::SyncPoint::GetInstance()->SetCallBack(
       "VersionEdit::EncodeTo:NewFile4:CustomizeFields", [&](void* arg) {
         std::string* str = reinterpret_cast<std::string*>(arg);
         const std::string str1 = "s";
         PutLengthPrefixedSlice(str, str1);
       });
-  ROCKSDB_NAMESPACE::SyncPoint::GetInstance()->EnableProcessing();
+  rocksdb::SyncPoint::GetInstance()->EnableProcessing();
   edit.EncodeTo(&encoded);
-  ROCKSDB_NAMESPACE::SyncPoint::GetInstance()->DisableProcessing();
+  rocksdb::SyncPoint::GetInstance()->DisableProcessing();
 
   VersionEdit parsed;
   Status s = parsed.DecodeFrom(encoded);
@@ -191,10 +164,7 @@ TEST_F(VersionEditTest, NewFile4NotSupportedField) {
 
 TEST_F(VersionEditTest, EncodeEmptyFile) {
   VersionEdit edit;
-  edit.AddFile(0, 0, 0, 0, InternalKey(), InternalKey(), 0, 0, false,
-               kInvalidBlobFileNumber, kUnknownOldestAncesterTime,
-               kUnknownFileCreationTime, kUnknownFileChecksum,
-               kUnknownFileChecksumFuncName);
+  edit.AddFile(0, 0, 0, 0, InternalKey(), InternalKey(), 0, 0, false);
   std::string buffer;
   ASSERT_TRUE(!edit.EncodeTo(&buffer));
 }
@@ -263,53 +233,13 @@ TEST_F(VersionEditTest, IgnorableField) {
 
   ASSERT_OK(ve.DecodeFrom(encoded));
 
-  ASSERT_TRUE(ve.HasLogNumber());
-  ASSERT_TRUE(ve.HasNextFile());
-  ASSERT_EQ(66, ve.GetLogNumber());
-  ASSERT_EQ(88, ve.GetNextFile());
+  ASSERT_TRUE(ve.has_log_number());
+  ASSERT_TRUE(ve.has_next_file_number());
+  ASSERT_EQ(66, ve.log_number());
+  ASSERT_EQ(88, ve.next_file_number());
 }
 
-TEST_F(VersionEditTest, DbId) {
-  VersionEdit edit;
-  edit.SetDBId("ab34-cd12-435f-er00");
-  TestEncodeDecode(edit);
-
-  edit.Clear();
-  edit.SetDBId("34ba-cd12-435f-er01");
-  TestEncodeDecode(edit);
-}
-
-TEST_F(VersionEditTest, BlobFileAdditionAndGarbage) {
-  VersionEdit edit;
-
-  const std::string checksum_method_prefix = "Hash";
-  const std::string checksum_value_prefix = "Value";
-
-  for (uint64_t blob_file_number = 1; blob_file_number <= 10;
-       ++blob_file_number) {
-    const uint64_t total_blob_count = blob_file_number << 10;
-    const uint64_t total_blob_bytes = blob_file_number << 20;
-
-    std::string checksum_method(checksum_method_prefix);
-    AppendNumberTo(&checksum_method, blob_file_number);
-
-    std::string checksum_value(checksum_value_prefix);
-    AppendNumberTo(&checksum_value, blob_file_number);
-
-    edit.AddBlobFile(blob_file_number, total_blob_count, total_blob_bytes,
-                     checksum_method, checksum_value);
-
-    const uint64_t garbage_blob_count = total_blob_count >> 2;
-    const uint64_t garbage_blob_bytes = total_blob_bytes >> 1;
-
-    edit.AddBlobFileGarbage(blob_file_number, garbage_blob_count,
-                            garbage_blob_bytes);
-  }
-
-  TestEncodeDecode(edit);
-}
-
-}  // namespace ROCKSDB_NAMESPACE
+}  // namespace rocksdb
 
 int main(int argc, char** argv) {
   ::testing::InitGoogleTest(&argc, argv);

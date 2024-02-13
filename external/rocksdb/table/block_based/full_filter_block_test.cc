@@ -3,20 +3,18 @@
 //  COPYING file in the root directory) and Apache 2.0 License
 //  (found in the LICENSE.Apache file in the root directory).
 
-#include <set>
-
 #include "table/block_based/full_filter_block.h"
+
 #include "rocksdb/filter_policy.h"
 #include "table/block_based/block_based_table_reader.h"
-#include "table/block_based/mock_block_based_table.h"
-#include "table/block_based/filter_policy_internal.h"
+#include "table/full_filter_bits_builder.h"
 #include "test_util/testharness.h"
 #include "test_util/testutil.h"
 #include "util/coding.h"
 #include "util/hash.h"
 #include "util/string_util.h"
 
-namespace ROCKSDB_NAMESPACE {
+namespace rocksdb {
 
 class TestFilterBitsBuilder : public FilterBitsBuilder {
  public:
@@ -102,22 +100,39 @@ class TestHashFilter : public FilterPolicy {
   }
 };
 
-class PluginFullFilterBlockTest : public mock::MockBlockBasedTableTester,
-                                  public testing::Test {
+class PluginFullFilterBlockTest : public testing::Test {
  public:
+  Options options_;
+  ImmutableCFOptions ioptions_;
+  EnvOptions env_options_;
+  BlockBasedTableOptions table_options_;
+  InternalKeyComparator icomp_;
+  std::unique_ptr<BlockBasedTable> table_;
+
   PluginFullFilterBlockTest()
-      : mock::MockBlockBasedTableTester(new TestHashFilter) {}
+      : ioptions_(options_),
+        env_options_(options_),
+        icomp_(options_.comparator) {
+    table_options_.filter_policy.reset(new TestHashFilter);
+
+    constexpr bool skip_filters = false;
+    constexpr int level = 0;
+    constexpr bool immortal_table = false;
+    table_.reset(new MockBlockBasedTable(
+        new BlockBasedTable::Rep(ioptions_, env_options_, table_options_,
+                                 icomp_, skip_filters, level, immortal_table)));
+  }
 };
 
 TEST_F(PluginFullFilterBlockTest, PluginEmptyBuilder) {
-  FullFilterBlockBuilder builder(nullptr, true, GetBuilder());
+  FullFilterBlockBuilder builder(
+      nullptr, true, table_options_.filter_policy->GetFilterBitsBuilder());
   Slice slice = builder.Finish();
   ASSERT_EQ("", EscapeString(slice));
 
-  CachableEntry<ParsedFullFilterBlock> block(
-      new ParsedFullFilterBlock(table_options_.filter_policy.get(),
-                                BlockContents(slice)),
-      nullptr /* cache */, nullptr /* cache_handle */, true /* own_value */);
+  CachableEntry<BlockContents> block(
+      new BlockContents(slice), nullptr /* cache */, nullptr /* cache_handle */,
+      true /* own_value */);
 
   FullFilterBlockReader reader(table_.get(), std::move(block));
   // Remain same symantic with blockbased filter
@@ -129,7 +144,8 @@ TEST_F(PluginFullFilterBlockTest, PluginEmptyBuilder) {
 }
 
 TEST_F(PluginFullFilterBlockTest, PluginSingleChunk) {
-  FullFilterBlockBuilder builder(nullptr, true, GetBuilder());
+  FullFilterBlockBuilder builder(
+      nullptr, true, table_options_.filter_policy->GetFilterBitsBuilder());
   builder.Add("foo");
   builder.Add("bar");
   builder.Add("box");
@@ -137,10 +153,9 @@ TEST_F(PluginFullFilterBlockTest, PluginSingleChunk) {
   builder.Add("hello");
   Slice slice = builder.Finish();
 
-  CachableEntry<ParsedFullFilterBlock> block(
-      new ParsedFullFilterBlock(table_options_.filter_policy.get(),
-                                BlockContents(slice)),
-      nullptr /* cache */, nullptr /* cache_handle */, true /* own_value */);
+  CachableEntry<BlockContents> block(
+      new BlockContents(slice), nullptr /* cache */, nullptr /* cache_handle */,
+      true /* own_value */);
 
   FullFilterBlockReader reader(table_.get(), std::move(block));
   ASSERT_TRUE(reader.KeyMayMatch("foo", /*prefix_extractor=*/nullptr,
@@ -178,22 +193,39 @@ TEST_F(PluginFullFilterBlockTest, PluginSingleChunk) {
       /*lookup_context=*/nullptr));
 }
 
-class FullFilterBlockTest : public mock::MockBlockBasedTableTester,
-                            public testing::Test {
+class FullFilterBlockTest : public testing::Test {
  public:
+  Options options_;
+  ImmutableCFOptions ioptions_;
+  EnvOptions env_options_;
+  BlockBasedTableOptions table_options_;
+  InternalKeyComparator icomp_;
+  std::unique_ptr<BlockBasedTable> table_;
+
   FullFilterBlockTest()
-      : mock::MockBlockBasedTableTester(NewBloomFilterPolicy(10, false)) {}
+      : ioptions_(options_),
+        env_options_(options_),
+        icomp_(options_.comparator) {
+    table_options_.filter_policy.reset(NewBloomFilterPolicy(10, false));
+
+    constexpr bool skip_filters = false;
+    constexpr int level = 0;
+    constexpr bool immortal_table = false;
+    table_.reset(new MockBlockBasedTable(
+        new BlockBasedTable::Rep(ioptions_, env_options_, table_options_,
+                                 icomp_, skip_filters, level, immortal_table)));
+  }
 };
 
 TEST_F(FullFilterBlockTest, EmptyBuilder) {
-  FullFilterBlockBuilder builder(nullptr, true, GetBuilder());
+  FullFilterBlockBuilder builder(
+      nullptr, true, table_options_.filter_policy->GetFilterBitsBuilder());
   Slice slice = builder.Finish();
   ASSERT_EQ("", EscapeString(slice));
 
-  CachableEntry<ParsedFullFilterBlock> block(
-      new ParsedFullFilterBlock(table_options_.filter_policy.get(),
-                                BlockContents(slice)),
-      nullptr /* cache */, nullptr /* cache_handle */, true /* own_value */);
+  CachableEntry<BlockContents> block(
+      new BlockContents(slice), nullptr /* cache */, nullptr /* cache_handle */,
+      true /* own_value */);
 
   FullFilterBlockReader reader(table_.get(), std::move(block));
   // Remain same symantic with blockbased filter
@@ -204,61 +236,25 @@ TEST_F(FullFilterBlockTest, EmptyBuilder) {
                                  /*lookup_context=*/nullptr));
 }
 
-class CountUniqueFilterBitsBuilderWrapper : public FilterBitsBuilder {
-  std::unique_ptr<FilterBitsBuilder> b_;
-  std::set<std::string> uniq_;
-
- public:
-  explicit CountUniqueFilterBitsBuilderWrapper(FilterBitsBuilder* b) : b_(b) {}
-
-  ~CountUniqueFilterBitsBuilderWrapper() override {}
-
-  void AddKey(const Slice& key) override {
-    b_->AddKey(key);
-    uniq_.insert(key.ToString());
-  }
-
-  Slice Finish(std::unique_ptr<const char[]>* buf) override {
-    Slice rv = b_->Finish(buf);
-    uniq_.clear();
-    return rv;
-  }
-
-  int CalculateNumEntry(const uint32_t bytes) override {
-    return b_->CalculateNumEntry(bytes);
-  }
-
-  size_t CountUnique() { return uniq_.size(); }
-};
-
 TEST_F(FullFilterBlockTest, DuplicateEntries) {
   {  // empty prefixes
     std::unique_ptr<const SliceTransform> prefix_extractor(
         NewFixedPrefixTransform(0));
-    auto bits_builder = new CountUniqueFilterBitsBuilderWrapper(GetBuilder());
+    auto bits_builder = dynamic_cast<FullFilterBitsBuilder*>(
+        table_options_.filter_policy->GetFilterBitsBuilder());
     const bool WHOLE_KEY = true;
     FullFilterBlockBuilder builder(prefix_extractor.get(), WHOLE_KEY,
                                    bits_builder);
     ASSERT_EQ(0, builder.NumAdded());
-    ASSERT_EQ(0, bits_builder->CountUnique());
-    // adds key and empty prefix; both abstractions count them
-    builder.Add("key1");
-    ASSERT_EQ(2, builder.NumAdded());
-    ASSERT_EQ(2, bits_builder->CountUnique());
-    // Add different key (unique) and also empty prefix (not unique).
-    // From here in this test, it's immaterial whether the block builder
-    // can count unique keys.
-    builder.Add("key2");
-    ASSERT_EQ(3, bits_builder->CountUnique());
-    // Empty key -> nothing unique
-    builder.Add("");
-    ASSERT_EQ(3, bits_builder->CountUnique());
+    builder.Add("key");  // test with empty prefix
+    ASSERT_EQ(2, bits_builder->hash_entries_.size());
   }
 
   // mix of empty and non-empty
   std::unique_ptr<const SliceTransform> prefix_extractor(
       NewFixedPrefixTransform(7));
-  auto bits_builder = new CountUniqueFilterBitsBuilderWrapper(GetBuilder());
+  auto bits_builder = dynamic_cast<FullFilterBitsBuilder*>(
+      table_options_.filter_policy->GetFilterBitsBuilder());
   const bool WHOLE_KEY = true;
   FullFilterBlockBuilder builder(prefix_extractor.get(), WHOLE_KEY,
                                  bits_builder);
@@ -269,12 +265,13 @@ TEST_F(FullFilterBlockTest, DuplicateEntries) {
   builder.Add("prefix1key2");
   builder.Add("prefix1key3");
   builder.Add("prefix2key4");
-  // 1 empty, 2 non-empty prefixes, and 4 non-empty keys
-  ASSERT_EQ(1 + 2 + 4, bits_builder->CountUnique());
+  // two prefix adn 4 keys
+  ASSERT_EQ(1 + 2 + 4, bits_builder->hash_entries_.size());
 }
 
 TEST_F(FullFilterBlockTest, SingleChunk) {
-  FullFilterBlockBuilder builder(nullptr, true, GetBuilder());
+  FullFilterBlockBuilder builder(
+      nullptr, true, table_options_.filter_policy->GetFilterBitsBuilder());
   ASSERT_EQ(0, builder.NumAdded());
   builder.Add("foo");
   builder.Add("bar");
@@ -284,10 +281,9 @@ TEST_F(FullFilterBlockTest, SingleChunk) {
   ASSERT_EQ(5, builder.NumAdded());
   Slice slice = builder.Finish();
 
-  CachableEntry<ParsedFullFilterBlock> block(
-      new ParsedFullFilterBlock(table_options_.filter_policy.get(),
-                                BlockContents(slice)),
-      nullptr /* cache */, nullptr /* cache_handle */, true /* own_value */);
+  CachableEntry<BlockContents> block(
+      new BlockContents(slice), nullptr /* cache */, nullptr /* cache_handle */,
+      true /* own_value */);
 
   FullFilterBlockReader reader(table_.get(), std::move(block));
   ASSERT_TRUE(reader.KeyMayMatch("foo", /*prefix_extractor=*/nullptr,
@@ -325,7 +321,7 @@ TEST_F(FullFilterBlockTest, SingleChunk) {
       /*lookup_context=*/nullptr));
 }
 
-}  // namespace ROCKSDB_NAMESPACE
+}  // namespace rocksdb
 
 int main(int argc, char** argv) {
   ::testing::InitGoogleTest(&argc, argv);

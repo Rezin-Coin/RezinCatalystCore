@@ -13,7 +13,6 @@
 #include <unordered_set>
 #include <vector>
 
-#include "db/arena_wrapped_db_iter.h"
 #include "db/db_impl/db_impl.h"
 #include "rocksdb/db.h"
 #include "rocksdb/options.h"
@@ -25,12 +24,12 @@
 #include "utilities/transactions/pessimistic_transaction.h"
 #include "utilities/transactions/transaction_db_mutex_impl.h"
 
-namespace ROCKSDB_NAMESPACE {
+namespace rocksdb {
 
 Status WritePreparedTxnDB::Initialize(
     const std::vector<size_t>& compaction_enabled_cf_indices,
     const std::vector<ColumnFamilyHandle*>& handles) {
-  auto dbimpl = static_cast_with_check<DBImpl>(GetRootDB());
+  auto dbimpl = static_cast_with_check<DBImpl, DB>(GetRootDB());
   assert(dbimpl != nullptr);
   auto rtxns = dbimpl->recovered_transactions();
   std::map<SequenceNumber, SequenceNumber> ordered_seq_cnt;
@@ -43,7 +42,7 @@ Status WritePreparedTxnDB::Initialize(
     ordered_seq_cnt[seq] = cnt;
   }
   // AddPrepared must be called in order
-  for (auto seq_cnt : ordered_seq_cnt) {
+  for (auto seq_cnt: ordered_seq_cnt) {
     auto seq = seq_cnt.first;
     auto cnt = seq_cnt.second;
     for (size_t i = 0; i < cnt; i++) {
@@ -328,7 +327,8 @@ Iterator* WritePreparedTxnDB::NewIterator(const ReadOptions& options,
   if (options.snapshot != nullptr) {
     snapshot_seq = options.snapshot->GetSequenceNumber();
     min_uncommitted =
-        static_cast_with_check<const SnapshotImpl>(options.snapshot)
+        static_cast_with_check<const SnapshotImpl, const Snapshot>(
+            options.snapshot)
             ->min_uncommitted_;
   } else {
     auto* snapshot = GetSnapshot();
@@ -336,7 +336,8 @@ Iterator* WritePreparedTxnDB::NewIterator(const ReadOptions& options,
     // are not deleted.
     snapshot_seq = snapshot->GetSequenceNumber();
     min_uncommitted =
-        static_cast_with_check<const SnapshotImpl>(snapshot)->min_uncommitted_;
+        static_cast_with_check<const SnapshotImpl, const Snapshot>(snapshot)
+            ->min_uncommitted_;
     own_snapshot = std::make_shared<ManagedSnapshot>(db_impl_, snapshot);
   }
   assert(snapshot_seq != kMaxSequenceNumber);
@@ -361,9 +362,9 @@ Status WritePreparedTxnDB::NewIterators(
   SequenceNumber min_uncommitted = 0;
   if (options.snapshot != nullptr) {
     snapshot_seq = options.snapshot->GetSequenceNumber();
-    min_uncommitted =
-        static_cast_with_check<const SnapshotImpl>(options.snapshot)
-            ->min_uncommitted_;
+    min_uncommitted = static_cast_with_check<const SnapshotImpl, const Snapshot>(
+                        options.snapshot)
+                        ->min_uncommitted_;
   } else {
     auto* snapshot = GetSnapshot();
     // We take a snapshot to make sure that the related data in the commit map
@@ -371,7 +372,8 @@ Status WritePreparedTxnDB::NewIterators(
     snapshot_seq = snapshot->GetSequenceNumber();
     own_snapshot = std::make_shared<ManagedSnapshot>(db_impl_, snapshot);
     min_uncommitted =
-        static_cast_with_check<const SnapshotImpl>(snapshot)->min_uncommitted_;
+        static_cast_with_check<const SnapshotImpl, const Snapshot>(snapshot)
+            ->min_uncommitted_;
   }
   iterators->clear();
   iterators->reserve(column_families.size());
@@ -967,9 +969,7 @@ WritePreparedTxnDB::~WritePreparedTxnDB() {
   // At this point there could be running compaction/flush holding a
   // SnapshotChecker, which holds a pointer back to WritePreparedTxnDB.
   // Make sure those jobs finished before destructing WritePreparedTxnDB.
-  if (!db_impl_->shutting_down_) {
-    db_impl_->CancelAllBackgroundWork(true /*wait*/);
-  }
+  db_impl_->CancelAllBackgroundWork(true /*wait*/);
 }
 
 void SubBatchCounter::InitWithComp(const uint32_t cf) {
@@ -991,5 +991,5 @@ void SubBatchCounter::AddKey(const uint32_t cf, const Slice& key) {
   }
 }
 
-}  // namespace ROCKSDB_NAMESPACE
+}  //  namespace rocksdb
 #endif  // ROCKSDB_LITE

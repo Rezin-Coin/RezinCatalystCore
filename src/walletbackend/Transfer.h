@@ -1,4 +1,4 @@
-// Copyright (c) 2018-2020, The TurtleCoin Developers
+// Copyright (c) 2018-2019, The TurtleCoin Developers
 //
 // Please see the included LICENSE file for more information.
 
@@ -23,8 +23,7 @@ namespace SendTransaction
         std::string destination,
         const std::shared_ptr<Nigel> daemon,
         const std::shared_ptr<SubWallets> subWallets,
-        const std::vector<uint8_t> extraData,
-        const std::optional<uint64_t> optimizeTarget);
+        const std::vector<uint8_t> extraData);
 
     std::tuple<Error, Crypto::Hash, WalletTypes::PreparedTransactionInfo> sendTransactionBasic(
         std::string destination,
@@ -76,7 +75,9 @@ namespace SendTransaction
         const std::vector<WalletTypes::ObscuredInput> inputsAndFakes,
         const std::vector<Crypto::SecretKey> tmpSecretKeys);
 
-    std::vector<uint64_t> splitAmountIntoDenominations(const uint64_t amount, const bool preventTooLargeOutputs = true);
+    std::vector<uint64_t> splitAmountIntoDenominations(
+        const uint64_t amount,
+        const bool preventTooLargeOutputs = true);
 
     std::vector<CryptoNote::TransactionInput>
         keyInputToTransactionInput(const std::vector<CryptoNote::KeyInput> keyInputs);
@@ -84,11 +85,11 @@ namespace SendTransaction
     std::vector<CryptoNote::TransactionOutput>
         keyOutputToTransactionOutput(const std::vector<WalletTypes::KeyOutput> keyOutputs);
 
-    std::tuple<Error, std::vector<WalletTypes::RandomOuts>> getRingParticipants(
+    std::tuple<Error, std::vector<CryptoNote::RandomOuts>> getRingParticipants(
         const uint64_t mixin,
         const std::shared_ptr<Nigel> daemon,
         const std::vector<WalletTypes::TxInputAndOwner> sources);
-
+    
     WalletTypes::TransactionResult makeTransaction(
         const uint64_t mixin,
         const std::shared_ptr<Nigel> daemon,
@@ -148,6 +149,7 @@ namespace SendTransaction
     bool verifyTransactionFee(
         const WalletTypes::FeeType expectedFee,
         const uint64_t actualFee,
+        const uint64_t height,
         const CryptoNote::Transaction tx);
 
     /* Template so we can do transaction, and transactionprefix */

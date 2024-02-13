@@ -19,7 +19,7 @@
 
 #ifndef ROCKSDB_LITE
 
-namespace ROCKSDB_NAMESPACE {
+namespace rocksdb {
 
 // A helper function that ensures the table properties returned in
 // `GetPropertiesOfAllTablesTest` is correct.
@@ -45,8 +45,7 @@ void VerifyTableProperties(DB* db, uint64_t expected_entries_size) {
 }
 }  // namespace
 
-class DBTablePropertiesTest : public DBTestBase,
-                              public testing::WithParamInterface<std::string> {
+class DBTablePropertiesTest : public DBTestBase {
  public:
   DBTablePropertiesTest() : DBTestBase("/db_table_properties_test") {}
   TablePropertiesCollection TestGetPropertiesOfTablesInRange(
@@ -231,7 +230,7 @@ TEST_F(DBTablePropertiesTest, GetColumnFamilyNameProperty) {
 
   // Create one table per CF, then verify it was created with the column family
   // name property.
-  for (uint32_t cf = 0; cf < 2; ++cf) {
+  for (int cf = 0; cf < 2; ++cf) {
     Put(cf, "key", "val");
     Flush(cf);
 
@@ -252,20 +251,7 @@ TEST_F(DBTablePropertiesTest, GetColumnFamilyNameProperty) {
   }
 }
 
-class DeletionTriggeredCompactionTestListener : public EventListener {
- public:
-  void OnCompactionBegin(DB* , const CompactionJobInfo& ci) override {
-    ASSERT_EQ(ci.compaction_reason,
-              CompactionReason::kFilesMarkedForCompaction);
-  }
-
-  void OnCompactionCompleted(DB* , const CompactionJobInfo& ci) override {
-    ASSERT_EQ(ci.compaction_reason,
-              CompactionReason::kFilesMarkedForCompaction);
-  }
-};
-
-TEST_P(DBTablePropertiesTest, DeletionTriggeredCompactionMarking) {
+TEST_F(DBTablePropertiesTest, DeletionTriggeredCompactionMarking) {
   int kNumKeys = 1000;
   int kWindowSize = 100;
   int kNumDelsTrigger = 90;
@@ -274,10 +260,6 @@ TEST_P(DBTablePropertiesTest, DeletionTriggeredCompactionMarking) {
 
   Options opts = CurrentOptions();
   opts.table_properties_collector_factories.emplace_back(compact_on_del);
-
-  if(GetParam() == "kCompactionStyleUniversal") {
-    opts.compaction_style = kCompactionStyleUniversal;
-  }
   Reopen(opts);
 
   // add an L1 file to prevent tombstones from dropping due to obsolescence
@@ -285,11 +267,6 @@ TEST_P(DBTablePropertiesTest, DeletionTriggeredCompactionMarking) {
   Put(Key(0), "val");
   Flush();
   MoveFilesToLevel(1);
-
-  DeletionTriggeredCompactionTestListener *listener =
-    new DeletionTriggeredCompactionTestListener();
-  opts.listeners.emplace_back(listener);
-  Reopen(opts);
 
   for (int i = 0; i < kNumKeys; ++i) {
     if (i >= kNumKeys - kWindowSize &&
@@ -303,6 +280,7 @@ TEST_P(DBTablePropertiesTest, DeletionTriggeredCompactionMarking) {
 
   dbfull()->TEST_WaitForCompact();
   ASSERT_EQ(0, NumTableFilesAtLevel(0));
+  ASSERT_GT(NumTableFilesAtLevel(1), 0);
 
   // Change the window size and deletion trigger and ensure new values take
   // effect
@@ -324,6 +302,7 @@ TEST_P(DBTablePropertiesTest, DeletionTriggeredCompactionMarking) {
 
   dbfull()->TEST_WaitForCompact();
   ASSERT_EQ(0, NumTableFilesAtLevel(0));
+  ASSERT_GT(NumTableFilesAtLevel(1), 0);
 
   // Change the window size to disable delete triggered compaction
   kWindowSize = 0;
@@ -343,22 +322,15 @@ TEST_P(DBTablePropertiesTest, DeletionTriggeredCompactionMarking) {
 
   dbfull()->TEST_WaitForCompact();
   ASSERT_EQ(1, NumTableFilesAtLevel(0));
+
 }
 
-INSTANTIATE_TEST_CASE_P(
-    DBTablePropertiesTest,
-    DBTablePropertiesTest,
-    ::testing::Values(
-      "kCompactionStyleLevel",
-      "kCompactionStyleUniversal"
-      ));
-
-}  // namespace ROCKSDB_NAMESPACE
+}  // namespace rocksdb
 
 #endif  // ROCKSDB_LITE
 
 int main(int argc, char** argv) {
-  ROCKSDB_NAMESPACE::port::InstallStackTraceHandler();
+  rocksdb::port::InstallStackTraceHandler();
   ::testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();
 }

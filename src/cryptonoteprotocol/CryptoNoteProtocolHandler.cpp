@@ -124,19 +124,17 @@ namespace CryptoNote
             s(transactions, "txs");
             request.txs.reserve(transactions.size());
             std::transform(
-                transactions.begin(),
-                transactions.end(),
-                std::back_inserter(request.txs),
-                [](const std::string &s) { return BinaryArray(s.begin(), s.end()); });
+                transactions.begin(), transactions.end(), std::back_inserter(request.txs), [](const std::string &s) {
+                    return BinaryArray(s.begin(), s.end());
+                });
         }
         else
         {
             transactions.reserve(request.txs.size());
             std::transform(
-                request.txs.begin(),
-                request.txs.end(),
-                std::back_inserter(transactions),
-                [](const BinaryArray &s) { return std::string(s.begin(), s.end()); });
+                request.txs.begin(), request.txs.end(), std::back_inserter(transactions), [](const BinaryArray &s) {
+                    return std::string(s.begin(), s.end());
+                });
             s(transactions, "txs");
         }
     }
@@ -280,20 +278,18 @@ namespace CryptoNote
         ss << std::setw(25) << std::left << "Remote Host" << std::setw(20) << "Peer ID" << std::setw(25)
            << "Recv/Sent (inactive,sec)" << std::setw(25) << "State" << std::setw(20) << "Lifetime(seconds)" << ENDL;
 
-        m_p2p->for_each_connection(
-            [&](const CryptoNoteConnectionContext &cntxt, uint64_t peer_id)
-            {
-                ss << std::setw(25) << std::left
-                   << std::string(cntxt.m_is_income ? "[INCOMING]" : "[OUTGOING]")
-                          + Common::ipAddressToString(cntxt.m_remote_ip) + ":" + std::to_string(cntxt.m_remote_port)
-                   << std::setw(20) << std::hex
-                   << peer_id
-                   // << std::setw(25) << std::to_string(cntxt.m_recv_cnt) + "(" + std::to_string(time(NULL) -
-                   // cntxt.m_last_recv) + ")" + "/" + std::to_string(cntxt.m_send_cnt) + "(" +
-                   // std::to_string(time(NULL) - cntxt.m_last_send) + ")"
-                   << std::setw(25) << get_protocol_state_string(cntxt.m_state) << std::setw(20)
-                   << std::to_string(time(NULL) - cntxt.m_started) << ENDL;
-            });
+        m_p2p->for_each_connection([&](const CryptoNoteConnectionContext &cntxt, uint64_t peer_id) {
+            ss << std::setw(25) << std::left
+               << std::string(cntxt.m_is_income ? "[INCOMING]" : "[OUTGOING]")
+                      + Common::ipAddressToString(cntxt.m_remote_ip) + ":" + std::to_string(cntxt.m_remote_port)
+               << std::setw(20) << std::hex
+               << peer_id
+               // << std::setw(25) << std::to_string(cntxt.m_recv_cnt) + "(" + std::to_string(time(NULL) -
+               // cntxt.m_last_recv) + ")" + "/" + std::to_string(cntxt.m_send_cnt) + "(" + std::to_string(time(NULL) -
+               // cntxt.m_last_send) + ")"
+               << std::setw(25) << get_protocol_state_string(cntxt.m_state) << std::setw(20)
+               << std::to_string(time(NULL) - cntxt.m_started) << ENDL;
+        });
         logger(INFO) << "Connections: " << ENDL << ss.str();
     }
 
@@ -416,14 +412,13 @@ namespace CryptoNote
     }
 
 // Changed std::bind -> lambda, for better debugging, remove it ASAP
-#define HANDLE_NOTIFY(CMD, Handler)                                                                             \
-    case CMD::ID:                                                                                               \
-    {                                                                                                           \
-        ret = notifyAdaptor<CMD>(                                                                               \
-            in,                                                                                                 \
-            ctx,                                                                                                \
-            [this](int a1, CMD::request &a2, CryptoNoteConnectionContext &a3) { return Handler(a1, a2, a3); }); \
-        break;                                                                                                  \
+#define HANDLE_NOTIFY(CMD, Handler)                                                                           \
+    case CMD::ID:                                                                                             \
+    {                                                                                                         \
+        ret = notifyAdaptor<CMD>(in, ctx, [this](int a1, CMD::request &a2, CryptoNoteConnectionContext &a3) { \
+            return Handler(a1, a2, a3);                                                                       \
+        });                                                                                                   \
+        break;                                                                                                \
     }
 
     int CryptoNoteProtocolHandler::handleCommand(
@@ -537,21 +532,17 @@ namespace CryptoNote
         }
         else
         {
-            const auto it = std::remove_if(
-                arg.txs.begin(),
-                arg.txs.end(),
-                [this, &context](const auto &tx)
+            const auto it = std::remove_if(arg.txs.begin(), arg.txs.end(), [this, &context](const auto &tx) {
+                const auto [success, error] = this->m_core.addTransactionToPool(tx);
+
+                if (!success)
                 {
-                    const auto [success, error] = this->m_core.addTransactionToPool(tx);
+                    this->logger(Logging::DEBUGGING) << context << "Tx verification failed";
+                }
 
-                    if (!success)
-                    {
-                        this->logger(Logging::DEBUGGING) << context << "Tx verification failed";
-                    }
-
-                    /* We return the opposite of success in this lambda */
-                    return !success;
-                });
+                /* We return the opposite of success in this lambda */
+                return !success;
+            });
             if (it != arg.txs.end())
             {
                 arg.txs.erase(it, arg.txs.end());
@@ -995,22 +986,12 @@ namespace CryptoNote
         if (m_synchronized.compare_exchange_strong(val_expected, true))
         {
             logger(Logging::INFO) << ENDL;
-            logger(INFO, BRIGHT_MAGENTA) << "===[ " + std::string(CryptoNote::CRYPTONOTE_NAME)
-                                                + " Tip! ]============================="
-                                         << ENDL;
-            logger(INFO, WHITE) << " Always exit " + WalletConfig::daemonName + " and " + WalletConfig::walletName
-                                       + " with the \"exit\" command to preserve your chain and wallet data."
-                                << ENDL;
-            logger(INFO, WHITE) << " Use the \"help\" command to see a list of available commands." << ENDL;
-            logger(INFO, WHITE) << " Use the \"backup\" command in " + WalletConfig::walletName
-                                       + " to display your keys/seed for restoring a corrupted wallet."
-                                << ENDL;
-            logger(INFO, WHITE) << " If you need more assistance, you can contact us for support at "
-                                       + WalletConfig::contactLink
-                                << ENDL;
-            logger(INFO, BRIGHT_MAGENTA) << "===================================================" << ENDL << ENDL;
+            logger(INFO, BRIGHT_GREEN) << "===[ " + std::string(CryptoNote::CRYPTONOTE_NAME)  + " has started! ]===============" << ENDL;
+            logger(INFO, WHITE) << "You are now ready to use the " + std::string(CryptoNote::CRYPTONOTE_NAME)  + " Node!" << ENDL;
+            //logger(INFO, WHITE) << "" << ENDL;
+            logger(INFO, BRIGHT_GREEN) << "===========================================" << ENDL << ENDL;
 
-            logger(INFO, BRIGHT_GREEN) << asciiArt << ENDL;
+            //logger(INFO, BRIGHT_GREEN) << asciiArt << ENDL;
 
             m_observerManager.notify(&ICryptoNoteProtocolObserver::blockchainSynchronized, m_core.getTopBlockIndex());
         }
@@ -1169,22 +1150,20 @@ namespace CryptoNote
         std::list<boost::uuids::uuid> liteBlockConnections, normalBlockConnections;
 
         // sort the peers into their support categories.
-        m_p2p->for_each_connection(
-            [this, &liteBlockConnections, &normalBlockConnections](
-                const CryptoNoteConnectionContext &ctx, uint64_t peerId)
+        m_p2p->for_each_connection([this, &liteBlockConnections, &normalBlockConnections](
+                                       const CryptoNoteConnectionContext &ctx, uint64_t peerId) {
+            if (ctx.version >= P2P_LITE_BLOCKS_PROPOGATION_VERSION)
             {
-                if (ctx.version >= P2P_LITE_BLOCKS_PROPOGATION_VERSION)
-                {
-                    logger(Logging::DEBUGGING) << ctx << "Peer supports lite-blocks... adding peer to lite block list";
-                    liteBlockConnections.push_back(ctx.m_connection_id);
-                }
-                else
-                {
-                    logger(Logging::DEBUGGING)
-                        << ctx << "Peer doesn't support lite-blocks... adding peer to normal block list";
-                    normalBlockConnections.push_back(ctx.m_connection_id);
-                }
-            });
+                logger(Logging::DEBUGGING) << ctx << "Peer supports lite-blocks... adding peer to lite block list";
+                liteBlockConnections.push_back(ctx.m_connection_id);
+            }
+            else
+            {
+                logger(Logging::DEBUGGING)
+                    << ctx << "Peer doesn't support lite-blocks... adding peer to normal block list";
+                normalBlockConnections.push_back(ctx.m_connection_id);
+            }
+        });
 
         // first send lite one's.. coz they are faster
         if (!liteBlockConnections.empty())
@@ -1281,14 +1260,12 @@ namespace CryptoNote
     {
         // should be locked outside
         uint32_t peerHeight = 0;
-        m_p2p->for_each_connection(
-            [&peerHeight, &context](const CryptoNoteConnectionContext &ctx, uint64_t peerId)
+        m_p2p->for_each_connection([&peerHeight, &context](const CryptoNoteConnectionContext &ctx, uint64_t peerId) {
+            if (ctx.m_connection_id != context.m_connection_id)
             {
-                if (ctx.m_connection_id != context.m_connection_id)
-                {
-                    peerHeight = std::max(peerHeight, ctx.m_remote_blockchain_height);
-                }
-            });
+                peerHeight = std::max(peerHeight, ctx.m_remote_blockchain_height);
+            }
+        });
 
         m_observedHeight = std::max(peerHeight, m_core.getTopBlockIndex() + 1);
         if (context.m_state == CryptoNoteConnectionContext::state_normal)

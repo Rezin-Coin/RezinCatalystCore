@@ -96,22 +96,20 @@ namespace CryptoNote
             System::ContextGroup cg(dispatcher);
             System::ContextGroupTimeout cgTimeout(dispatcher, cg, timeout);
 
-            cg.spawn(
-                [&]
+            cg.spawn([&] {
+                try
                 {
-                    try
-                    {
-                        f();
-                    }
-                    catch (System::InterruptedException &)
-                    {
-                        result = "Operation timeout";
-                    }
-                    catch (std::exception &e)
-                    {
-                        result = e.what();
-                    }
-                });
+                    f();
+                }
+                catch (System::InterruptedException &)
+                {
+                    result = "Operation timeout";
+                }
+                catch (std::exception &e)
+                {
+                    result = e.what();
+                }
+            });
 
             cg.wait();
 
@@ -424,14 +422,10 @@ namespace CryptoNote
             TcpConnector connector(m_dispatcher);
             TcpConnection tcpConnection;
 
-            doWithTimeoutAndThrow(
-                m_dispatcher,
-                m_cfg.getConnectTimeout(),
-                [&]
-                {
-                    tcpConnection = connector.connect(
-                        Ipv4Address(Common::ipAddressToString(address.ip)), static_cast<uint16_t>(address.port));
-                });
+            doWithTimeoutAndThrow(m_dispatcher, m_cfg.getConnectTimeout(), [&] {
+                tcpConnection = connector.connect(
+                    Ipv4Address(Common::ipAddressToString(address.ip)), static_cast<uint16_t>(address.port));
+            });
 
             logger(DEBUGGING) << "connection established to " << address;
 
@@ -621,41 +615,32 @@ namespace CryptoNote
             TcpConnector connector(m_dispatcher);
             TcpConnection connection;
 
-            doWithTimeoutAndThrow(
-                m_dispatcher,
-                m_cfg.getConnectTimeout(),
-                [&]
-                {
-                    connection = connector.connect(
-                        Ipv4Address(Common::ipAddressToString(peerAddress.ip)),
-                        static_cast<uint16_t>(peerAddress.port));
-                });
+            doWithTimeoutAndThrow(m_dispatcher, m_cfg.getConnectTimeout(), [&] {
+                connection = connector.connect(
+                    Ipv4Address(Common::ipAddressToString(peerAddress.ip)), static_cast<uint16_t>(peerAddress.port));
+            });
 
-            doWithTimeoutAndThrow(
-                m_dispatcher,
-                m_cfg.getHandshakeTimeout(),
-                [&]
-                {
-                    LevinProtocol proto(connection);
-                    COMMAND_PING::request request;
-                    COMMAND_PING::response response;
-                    proto.invoke(COMMAND_PING::ID, request, response);
+            doWithTimeoutAndThrow(m_dispatcher, m_cfg.getHandshakeTimeout(), [&] {
+                LevinProtocol proto(connection);
+                COMMAND_PING::request request;
+                COMMAND_PING::response response;
+                proto.invoke(COMMAND_PING::ID, request, response);
 
-                    if (response.status == PING_OK_RESPONSE_STATUS_TEXT && response.peer_id == ctx.getPeerId())
-                    {
-                        PeerlistEntry entry;
-                        entry.adr = peerAddress;
-                        entry.id = ctx.getPeerId();
-                        entry.last_seen = time(nullptr);
-                        m_peerlist.append_with_peer_white(entry);
-                    }
-                    else
-                    {
-                        logger(Logging::DEBUGGING)
-                            << ctx << "back ping invoke wrong response \"" << response.status << "\" from"
-                            << peerAddress << ", expected peerId=" << ctx.getPeerId() << ", got " << response.peer_id;
-                    }
-                });
+                if (response.status == PING_OK_RESPONSE_STATUS_TEXT && response.peer_id == ctx.getPeerId())
+                {
+                    PeerlistEntry entry;
+                    entry.adr = peerAddress;
+                    entry.id = ctx.getPeerId();
+                    entry.last_seen = time(nullptr);
+                    m_peerlist.append_with_peer_white(entry);
+                }
+                else
+                {
+                    logger(Logging::DEBUGGING)
+                        << ctx << "back ping invoke wrong response \"" << response.status << "\" from" << peerAddress
+                        << ", expected peerId=" << ctx.getPeerId() << ", got " << response.peer_id;
+                }
+            });
         }
         catch (std::exception &e)
         {

@@ -18,7 +18,7 @@
 #include "rocksdb/write_batch.h"
 #include "util/autovector.h"
 
-namespace ROCKSDB_NAMESPACE {
+namespace rocksdb {
 
 class MemTable;
 class FlushScheduler;
@@ -115,10 +115,10 @@ class WriteBatchInternal {
   static Status InsertNoop(WriteBatch* batch);
 
   // Return the number of entries in the batch.
-  static uint32_t Count(const WriteBatch* batch);
+  static int Count(const WriteBatch* batch);
 
   // Set the count for the number of entries in the batch.
-  static void SetCount(WriteBatch* batch, uint32_t n);
+  static void SetCount(WriteBatch* batch, int n);
 
   // Return the sequence number for the start of this batch.
   static SequenceNumber Sequence(const WriteBatch* batch);
@@ -188,8 +188,7 @@ class WriteBatchInternal {
                            uint64_t log_number = 0, DB* db = nullptr,
                            bool concurrent_memtable_writes = false,
                            bool seq_per_batch = false, size_t batch_cnt = 0,
-                           bool batch_per_txn = true,
-                           bool hint_per_batch = false);
+                           bool batch_per_txn = true);
 
   static Status Append(WriteBatch* dst, const WriteBatch* src,
                        const bool WAL_only = false);
@@ -247,4 +246,4 @@ class LocalSavePoint {
 #endif
 };
 
-}  // namespace ROCKSDB_NAMESPACE
+}  // namespace rocksdb

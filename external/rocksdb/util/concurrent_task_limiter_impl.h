@@ -14,7 +14,7 @@
 #include "rocksdb/env.h"
 #include "rocksdb/concurrent_task_limiter.h"
 
-namespace ROCKSDB_NAMESPACE {
+namespace rocksdb {
 
 class TaskLimiterToken;
 
@@ -22,10 +22,6 @@ class ConcurrentTaskLimiterImpl : public ConcurrentTaskLimiter {
  public:
   explicit ConcurrentTaskLimiterImpl(const std::string& name,
                                      int32_t max_outstanding_task);
-  // No copying allowed
-  ConcurrentTaskLimiterImpl(const ConcurrentTaskLimiterImpl&) = delete;
-  ConcurrentTaskLimiterImpl& operator=(const ConcurrentTaskLimiterImpl&) =
-      delete;
 
   virtual ~ConcurrentTaskLimiterImpl();
 
@@ -48,6 +44,11 @@ class ConcurrentTaskLimiterImpl : public ConcurrentTaskLimiter {
   std::string name_;
   std::atomic<int32_t> max_outstanding_tasks_;
   std::atomic<int32_t> outstanding_tasks_;
+
+  // No copying allowed
+  ConcurrentTaskLimiterImpl(const ConcurrentTaskLimiterImpl&) = delete;
+  ConcurrentTaskLimiterImpl& operator=(
+      const ConcurrentTaskLimiterImpl&) = delete;
 };
 
 class TaskLimiterToken {
@@ -64,4 +65,4 @@ class TaskLimiterToken {
   void operator=(const TaskLimiterToken&) = delete;
 };
 
-}  // namespace ROCKSDB_NAMESPACE
+}  // namespace rocksdb

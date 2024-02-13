@@ -86,10 +86,9 @@ else
 fi
 CFLAGS+=" -DTBB"
 
-test "$USE_SSE" || USE_SSE=1
-export USE_SSE
-test "$PORTABLE" || PORTABLE=1
-export PORTABLE
+# use Intel SSE support for checksum calculations
+export USE_SSE=1
+export PORTABLE=1
 
 BINUTILS="$BINUTILS_BASE/bin"
 AR="$BINUTILS/ar"

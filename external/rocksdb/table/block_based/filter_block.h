@@ -33,7 +33,7 @@
 #include "trace_replay/block_cache_tracer.h"
 #include "util/hash.h"
 
-namespace ROCKSDB_NAMESPACE {
+namespace rocksdb {
 
 const uint64_t kNotValid = ULLONG_MAX;
 class FilterPolicy;
@@ -52,10 +52,6 @@ using MultiGetRange = MultiGetContext::Range;
 class FilterBlockBuilder {
  public:
   explicit FilterBlockBuilder() {}
-  // No copying allowed
-  FilterBlockBuilder(const FilterBlockBuilder&) = delete;
-  void operator=(const FilterBlockBuilder&) = delete;
-
   virtual ~FilterBlockBuilder() {}
 
   virtual bool IsBlockBased() = 0;                    // If is blockbased filter
@@ -70,6 +66,11 @@ class FilterBlockBuilder {
     return ret;
   }
   virtual Slice Finish(const BlockHandle& tmp, Status* status) = 0;
+
+ private:
+  // No copying allowed
+  FilterBlockBuilder(const FilterBlockBuilder&);
+  void operator=(const FilterBlockBuilder&);
 };
 
 // A FilterBlockReader is used to parse filter from SST table.
@@ -138,8 +139,8 @@ class FilterBlockReader {
       GetContext* const get_context = iter->get_context;
       if (prefix_extractor->InDomain(ukey) &&
           !PrefixMayMatch(prefix_extractor->Transform(ukey), prefix_extractor,
-                          block_offset, no_io, &ikey, get_context,
-                          lookup_context)) {
+                       block_offset, no_io, &ikey, get_context,
+                       lookup_context)) {
         range->SkipKey(iter);
       }
     }
@@ -160,18 +161,15 @@ class FilterBlockReader {
                              const SliceTransform* prefix_extractor,
                              const Comparator* /*comparator*/,
                              const Slice* const const_ikey_ptr,
-                             bool* filter_checked, bool need_upper_bound_check,
-                             bool no_io,
+                             bool* filter_checked,
+                             bool /*need_upper_bound_check*/,
                              BlockCacheLookupContext* lookup_context) {
-    if (need_upper_bound_check) {
-      return true;
-    }
     *filter_checked = true;
     Slice prefix = prefix_extractor->Transform(user_key);
-    return PrefixMayMatch(prefix, prefix_extractor, kNotValid, no_io,
+    return PrefixMayMatch(prefix, prefix_extractor, kNotValid, false,
                           const_ikey_ptr, /* get_context */ nullptr,
                           lookup_context);
   }
 };
 
-}  // namespace ROCKSDB_NAMESPACE
+}  // namespace rocksdb

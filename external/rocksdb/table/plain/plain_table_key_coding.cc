@@ -9,11 +9,11 @@
 #include <algorithm>
 #include <string>
 #include "db/dbformat.h"
-#include "file/writable_file_writer.h"
 #include "table/plain/plain_table_factory.h"
 #include "table/plain/plain_table_reader.h"
+#include "util/file_reader_writer.h"
 
-namespace ROCKSDB_NAMESPACE {
+namespace rocksdb {
 
 enum PlainTableEntryType : unsigned char {
   kFullKey = 0,
@@ -80,13 +80,13 @@ inline Status PlainTableKeyDecoder::DecodeSize(uint32_t start_offset,
   }
 }
 
-IOStatus PlainTableKeyEncoder::AppendKey(const Slice& key,
-                                         WritableFileWriter* file,
-                                         uint64_t* offset, char* meta_bytes_buf,
-                                         size_t* meta_bytes_buf_size) {
+Status PlainTableKeyEncoder::AppendKey(const Slice& key,
+                                       WritableFileWriter* file,
+                                       uint64_t* offset, char* meta_bytes_buf,
+                                       size_t* meta_bytes_buf_size) {
   ParsedInternalKey parsed_key;
   if (!ParseInternalKey(key, &parsed_key)) {
-    return IOStatus::Corruption(Slice());
+    return Status::Corruption(Slice());
   }
 
   Slice key_to_write = key;  // Portion of internal key to write out.
@@ -99,9 +99,9 @@ IOStatus PlainTableKeyEncoder::AppendKey(const Slice& key,
       char* ptr = EncodeVarint32(key_size_buf, user_key_size);
       assert(ptr <= key_size_buf + sizeof(key_size_buf));
       auto len = ptr - key_size_buf;
-      IOStatus io_s = file->Append(Slice(key_size_buf, len));
-      if (!io_s.ok()) {
-        return io_s;
+      Status s = file->Append(Slice(key_size_buf, len));
+      if (!s.ok()) {
+        return s;
       }
       *offset += len;
     }
@@ -117,9 +117,9 @@ IOStatus PlainTableKeyEncoder::AppendKey(const Slice& key,
       key_count_for_prefix_ = 1;
       pre_prefix_.SetUserKey(prefix);
       size_bytes_pos += EncodeSize(kFullKey, user_key_size, size_bytes);
-      IOStatus io_s = file->Append(Slice(size_bytes, size_bytes_pos));
-      if (!io_s.ok()) {
-        return io_s;
+      Status s = file->Append(Slice(size_bytes, size_bytes_pos));
+      if (!s.ok()) {
+        return s;
       }
       *offset += size_bytes_pos;
     } else {
@@ -135,9 +135,9 @@ IOStatus PlainTableKeyEncoder::AppendKey(const Slice& key,
           static_cast<uint32_t>(pre_prefix_.GetUserKey().size());
       size_bytes_pos += EncodeSize(kKeySuffix, user_key_size - prefix_len,
                                    size_bytes + size_bytes_pos);
-      IOStatus io_s = file->Append(Slice(size_bytes, size_bytes_pos));
-      if (!io_s.ok()) {
-        return io_s;
+      Status s = file->Append(Slice(size_bytes, size_bytes_pos));
+      if (!s.ok()) {
+        return s;
       }
       *offset += size_bytes_pos;
       key_to_write = Slice(key.data() + prefix_len, key.size() - prefix_len);
@@ -149,23 +149,20 @@ IOStatus PlainTableKeyEncoder::AppendKey(const Slice& key,
   // If the row is of value type with seqId 0, flush the special flag together
   // in this buffer to safe one file append call, which takes 1 byte.
   if (parsed_key.sequence == 0 && parsed_key.type == kTypeValue) {
-    IOStatus io_s =
+    Status s =
         file->Append(Slice(key_to_write.data(), key_to_write.size() - 8));
-    if (!io_s.ok()) {
-      return io_s;
+    if (!s.ok()) {
+      return s;
     }
     *offset += key_to_write.size() - 8;
     meta_bytes_buf[*meta_bytes_buf_size] = PlainTableFactory::kValueTypeSeqId0;
     *meta_bytes_buf_size += 1;
   } else {
-    IOStatus io_s = file->Append(key_to_write);
-    if (!io_s.ok()) {
-      return io_s;
-    }
+    file->Append(key_to_write);
     *offset += key_to_write.size();
   }
 
-  return IOStatus::OK();
+  return Status::OK();
 }
 
 Slice PlainTableFileReader::GetFromBuffer(Buffer* buffer, uint32_t file_offset,
@@ -210,9 +207,8 @@ bool PlainTableFileReader::ReadNonMmap(uint32_t file_offset, uint32_t len,
     new_buffer->buf_len = 0;
   }
   Slice read_result;
-  Status s =
-      file_info_->file->Read(IOOptions(), file_offset, size_to_read,
-                             &read_result, new_buffer->buf.get(), nullptr);
+  Status s = file_info_->file->Read(file_offset, size_to_read, &read_result,
+                                    new_buffer->buf.get());
   if (!s.ok()) {
     status_ = s;
     return false;
@@ -498,5 +494,5 @@ Status PlainTableKeyDecoder::NextKeyNoValue(uint32_t start_offset,
   }
 }
 
-}  // namespace ROCKSDB_NAMESPACE
+}  // namespace rocksdb
 #endif  // ROCKSDB_LIT

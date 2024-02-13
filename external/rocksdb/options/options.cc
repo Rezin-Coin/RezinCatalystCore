@@ -30,7 +30,7 @@
 #include "table/block_based/block_based_table_factory.h"
 #include "util/compression.h"
 
-namespace ROCKSDB_NAMESPACE {
+namespace rocksdb {
 
 AdvancedColumnFamilyOptions::AdvancedColumnFamilyOptions() {
   assert(memtable_factory.get() != nullptr);
@@ -183,11 +183,6 @@ void ColumnFamilyOptions::Dump(Logger* log) const {
         "%" PRIu32,
         bottommost_compression_opts.zstd_max_train_bytes);
     ROCKS_LOG_HEADER(
-        log,
-        "        Options.bottommost_compression_opts.parallel_threads: "
-        "%" PRIu32,
-        bottommost_compression_opts.parallel_threads);
-    ROCKS_LOG_HEADER(
         log, "                 Options.bottommost_compression_opts.enabled: %s",
         bottommost_compression_opts.enabled ? "true" : "false");
     ROCKS_LOG_HEADER(log, "           Options.compression_opts.window_bits: %d",
@@ -205,10 +200,6 @@ void ColumnFamilyOptions::Dump(Logger* log) const {
                      "%" PRIu32,
                      compression_opts.zstd_max_train_bytes);
     ROCKS_LOG_HEADER(log,
-                     "        Options.compression_opts.parallel_threads: "
-                     "%" PRIu32,
-                     compression_opts.parallel_threads);
-    ROCKS_LOG_HEADER(log,
                      "                 Options.compression_opts.enabled: %s",
                      compression_opts.enabled ? "true" : "false");
     ROCKS_LOG_HEADER(log, "     Options.level0_file_num_compaction_trigger: %d",
@@ -225,6 +216,9 @@ void ColumnFamilyOptions::Dump(Logger* log) const {
     ROCKS_LOG_HEADER(
         log, "               Options.max_bytes_for_level_base: %" PRIu64,
         max_bytes_for_level_base);
+    ROCKS_LOG_HEADER(
+        log, "                     Options.snap_refresh_nanos: %" PRIu64,
+        snap_refresh_nanos);
     ROCKS_LOG_HEADER(log, "Options.level_compaction_dynamic_level_bytes: %d",
                      level_compaction_dynamic_level_bytes);
     ROCKS_LOG_HEADER(log, "         Options.max_bytes_for_level_multiplier: %f",
@@ -319,13 +313,14 @@ void ColumnFamilyOptions::Dump(Logger* log) const {
     ROCKS_LOG_HEADER(log,
                      "Options.compaction_options_fifo.allow_compaction: %d",
                      compaction_options_fifo.allow_compaction);
-    std::ostringstream collector_info;
+    std::string collector_names;
     for (const auto& collector_factory : table_properties_collector_factories) {
-      collector_info << collector_factory->ToString() << ';';
+      collector_names.append(collector_factory->Name());
+      collector_names.append("; ");
     }
     ROCKS_LOG_HEADER(
         log, "                  Options.table_properties_collectors: %s",
-        collector_info.str().c_str());
+        collector_names.c_str());
     ROCKS_LOG_HEADER(log,
                      "                  Options.inplace_update_support: %d",
                      inplace_update_support);
@@ -486,8 +481,8 @@ DBOptions* DBOptions::OptimizeForSmallDb(std::shared_ptr<Cache>* cache) {
   max_open_files = 5000;
 
   // Cost memtable to block cache too.
-  std::shared_ptr<ROCKSDB_NAMESPACE::WriteBufferManager> wbm =
-      std::make_shared<ROCKSDB_NAMESPACE::WriteBufferManager>(
+  std::shared_ptr<rocksdb::WriteBufferManager> wbm =
+      std::make_shared<rocksdb::WriteBufferManager>(
           0, (cache != nullptr) ? *cache : std::shared_ptr<Cache>());
   write_buffer_manager = wbm;
 
@@ -499,6 +494,7 @@ ColumnFamilyOptions* ColumnFamilyOptions::OptimizeForSmallDb(
   write_buffer_size = 2 << 20;
   target_file_size_base = 2 * 1048576;
   max_bytes_for_level_base = 10 * 1048576;
+  snap_refresh_nanos = 0;
   soft_pending_compaction_bytes_limit = 256 * 1048576;
   hard_pending_compaction_bytes_limit = 1073741824ul;
 
@@ -600,15 +596,12 @@ ReadOptions::ReadOptions()
       tailing(false),
       managed(false),
       total_order_seek(false),
-      auto_prefix_mode(false),
       prefix_same_as_start(false),
       pin_data(false),
       background_purge_on_iterator_cleanup(false),
       ignore_range_deletions(false),
       iter_start_seqnum(0),
-      timestamp(nullptr),
-      iter_start_ts(nullptr),
-      deadline(std::chrono::microseconds::zero()) {}
+      timestamp(nullptr) {}
 
 ReadOptions::ReadOptions(bool cksum, bool cache)
     : snapshot(nullptr),
@@ -622,14 +615,11 @@ ReadOptions::ReadOptions(bool cksum, bool cache)
       tailing(false),
       managed(false),
       total_order_seek(false),
-      auto_prefix_mode(false),
       prefix_same_as_start(false),
       pin_data(false),
       background_purge_on_iterator_cleanup(false),
       ignore_range_deletions(false),
       iter_start_seqnum(0),
-      timestamp(nullptr),
-      iter_start_ts(nullptr),
-      deadline(std::chrono::microseconds::zero()) {}
+      timestamp(nullptr) {}
 
-}  // namespace ROCKSDB_NAMESPACE
+}  // namespace rocksdb

@@ -294,10 +294,9 @@ template<typename T> class ThreadSafeDeque
         std::unique_lock<std::mutex> lock(m_mutex);
 
         return std::accumulate(
-            m_deque.begin(),
-            m_deque.end(),
-            sizeof(m_deque),
-            [&memUsage](const auto acc, const auto item) { return acc + memUsage(item); });
+            m_deque.begin(), m_deque.end(), sizeof(m_deque), [&memUsage](const auto acc, const auto item) {
+                return acc + memUsage(item);
+            });
     }
 
   private:
@@ -316,18 +315,15 @@ template<typename T> class ThreadSafeDeque
 
         /* Wait for data to become available (releases the lock whilst
            it's not, so we don't block the producer) */
-        m_haveData.wait(
-            lock,
-            [&]
+        m_haveData.wait(lock, [&] {
+            /* Stopping, don't block */
+            if (m_shouldStop)
             {
-                /* Stopping, don't block */
-                if (m_shouldStop)
-                {
-                    return true;
-                }
+                return true;
+            }
 
-                return !m_deque.empty();
-            });
+            return !m_deque.empty();
+        });
 
         /* Stopping, don't return data */
         if (m_shouldStop)

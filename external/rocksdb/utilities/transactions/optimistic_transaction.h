@@ -24,16 +24,13 @@
 #include "utilities/transactions/transaction_base.h"
 #include "utilities/transactions/transaction_util.h"
 
-namespace ROCKSDB_NAMESPACE {
+namespace rocksdb {
 
 class OptimisticTransaction : public TransactionBaseImpl {
  public:
   OptimisticTransaction(OptimisticTransactionDB* db,
                         const WriteOptions& write_options,
                         const OptimisticTransactionOptions& txn_options);
-  // No copying allowed
-  OptimisticTransaction(const OptimisticTransaction&) = delete;
-  void operator=(const OptimisticTransaction&) = delete;
 
   virtual ~OptimisticTransaction();
 
@@ -55,7 +52,7 @@ class OptimisticTransaction : public TransactionBaseImpl {
                  const bool assume_tracked = false) override;
 
  private:
-  ROCKSDB_FIELD_UNUSED OptimisticTransactionDB* const txn_db_;
+  OptimisticTransactionDB* const txn_db_;
 
   friend class OptimisticTransactionCallback;
 
@@ -75,9 +72,9 @@ class OptimisticTransaction : public TransactionBaseImpl {
     // Nothing to unlock.
   }
 
-  Status CommitWithSerialValidate();
-
-  Status CommitWithParallelValidate();
+  // No copying allowed
+  OptimisticTransaction(const OptimisticTransaction&);
+  void operator=(const OptimisticTransaction&);
 };
 
 // Used at commit time to trigger transaction validation
@@ -96,6 +93,6 @@ class OptimisticTransactionCallback : public WriteCallback {
   OptimisticTransaction* txn_;
 };
 
-}  // namespace ROCKSDB_NAMESPACE
+}  // namespace rocksdb
 
 #endif  // ROCKSDB_LITE

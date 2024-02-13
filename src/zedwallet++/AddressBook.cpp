@@ -196,7 +196,7 @@ void sendFromAddressBook(const std::shared_ptr<WalletBackend> walletBackend)
 
     if (cancel)
     {
-        std::cout << WarningMsg("Cancelling transaction.\n");
+        std::cout << WarningMsg("Transaction canceled\n\n");
         return;
     }
 
@@ -207,7 +207,7 @@ void sendFromAddressBook(const std::shared_ptr<WalletBackend> walletBackend)
 
     if (!success)
     {
-        std::cout << WarningMsg("Cancelling transaction.\n");
+        std::cout << WarningMsg("Transaction canceled\n\n");
     }
 
     sendTransaction(walletBackend, addressBookEntry.address, amount, addressBookEntry.paymentID);
@@ -295,7 +295,7 @@ void listAddressBook()
 
     size_t i = 1;
 
-    for (const auto &entry : addressBook)
+    for (const auto entry : addressBook)
     {
         std::cout << InformationMsg("Address Book Entry: ") << InformationMsg(i) << InformationMsg(" | ")
                   << SuccessMsg(entry.friendlyName) << "\n"

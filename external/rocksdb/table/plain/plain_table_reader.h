@@ -13,19 +13,19 @@
 #include <stdint.h>
 
 #include "db/dbformat.h"
-#include "file/random_access_file_reader.h"
 #include "memory/arena.h"
 #include "rocksdb/env.h"
 #include "rocksdb/iterator.h"
 #include "rocksdb/slice_transform.h"
 #include "rocksdb/table.h"
 #include "rocksdb/table_properties.h"
-#include "table/plain/plain_table_bloom.h"
 #include "table/plain/plain_table_factory.h"
 #include "table/plain/plain_table_index.h"
 #include "table/table_reader.h"
+#include "util/dynamic_bloom.h"
+#include "util/file_reader_writer.h"
 
-namespace ROCKSDB_NAMESPACE {
+namespace rocksdb {
 
 class Block;
 struct BlockContents;
@@ -83,9 +83,7 @@ class PlainTableReader: public TableReader {
   InternalIterator* NewIterator(const ReadOptions&,
                                 const SliceTransform* prefix_extractor,
                                 Arena* arena, bool skip_filters,
-                                TableReaderCaller caller,
-                                size_t compaction_readahead_size = 0,
-                                bool allow_unprepared_value = false) override;
+                                TableReaderCaller caller, size_t compaction_readahead_size = 0) override;
 
   void Prepare(const Slice& target) override;
 
@@ -157,7 +155,7 @@ class PlainTableReader: public TableReader {
 
   // Bloom filter is used to rule out non-existent key
   bool enable_bloom_;
-  PlainTableBloomV1 bloom_;
+  DynamicBloom bloom_;
   PlainTableReaderFileInfo file_info_;
   Arena arena_;
   CacheAllocationPtr index_block_alloc_;
@@ -166,9 +164,7 @@ class PlainTableReader: public TableReader {
   const ImmutableCFOptions& ioptions_;
   std::unique_ptr<Cleanable> dummy_cleanable_;
   uint64_t file_size_;
- protected: // for testing
   std::shared_ptr<const TableProperties> table_properties_;
- private:
 
   bool IsFixedLength() const {
     return user_key_len_ != kPlainTableVariableLength;
@@ -213,11 +209,12 @@ class PlainTableReader: public TableReader {
   Status PopulateIndexRecordList(PlainTableIndexBuilder* index_builder,
                                  std::vector<uint32_t>* prefix_hashes);
 
-  // Internal helper function to allocate memory for bloom filter
-  void AllocateBloom(int bloom_bits_per_key, int num_prefixes,
-                     size_t huge_page_tlb_size);
+  // Internal helper function to allocate memory for bloom filter and fill it
+  void AllocateAndFillBloom(int bloom_bits_per_key, int num_prefixes,
+                            size_t huge_page_tlb_size,
+                            std::vector<uint32_t>* prefix_hashes);
 
-  void FillBloom(const std::vector<uint32_t>& prefix_hashes);
+  void FillBloom(std::vector<uint32_t>* prefix_hashes);
 
   // Read the key and value at `offset` to parameters for keys, the and
   // `seekable`.
@@ -243,5 +240,5 @@ class PlainTableReader: public TableReader {
   explicit PlainTableReader(const TableReader&) = delete;
   void operator=(const TableReader&) = delete;
 };
-}  // namespace ROCKSDB_NAMESPACE
+}  // namespace rocksdb
 #endif  // ROCKSDB_LITE

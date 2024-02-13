@@ -104,10 +104,9 @@ bool PeerlistManager::is_ip_allowed(uint32_t ip) const
 bool PeerlistManager::get_peerlist_head(std::list<PeerlistEntry> &bs_head, uint32_t depth)
 {
     /* Sort the peers by last seen [Newer peers come first] */
-    std::sort(
-        m_peers_white.begin(),
-        m_peers_white.end(),
-        [](const auto &lhs, const auto &rhs) { return lhs.last_seen > rhs.last_seen; });
+    std::sort(m_peers_white.begin(), m_peers_white.end(), [](const auto &lhs, const auto &rhs) {
+        return lhs.last_seen > rhs.last_seen;
+    });
 
     uint32_t i = 0;
 
@@ -175,10 +174,9 @@ bool PeerlistManager::append_with_peer_white(const PeerlistEntry &newPeer)
         }
 
         /* See if the peer already exists */
-        auto whiteListIterator = std::find_if(
-            m_peers_white.begin(),
-            m_peers_white.end(),
-            [&newPeer](const auto peer) { return peer.adr == newPeer.adr; });
+        auto whiteListIterator = std::find_if(m_peers_white.begin(), m_peers_white.end(), [&newPeer](const auto peer) {
+            return peer.adr == newPeer.adr;
+        });
 
         /* Peer doesn't exist */
         if (whiteListIterator == m_peers_white.end())
@@ -223,10 +221,9 @@ bool PeerlistManager::append_with_peer_gray(const PeerlistEntry &newPeer)
         }
 
         // find in white list
-        auto whiteListIterator = std::find_if(
-            m_peers_white.begin(),
-            m_peers_white.end(),
-            [&newPeer](const auto peer) { return peer.adr == newPeer.adr; });
+        auto whiteListIterator = std::find_if(m_peers_white.begin(), m_peers_white.end(), [&newPeer](const auto peer) {
+            return peer.adr == newPeer.adr;
+        });
 
         if (whiteListIterator != m_peers_white.end())
         {

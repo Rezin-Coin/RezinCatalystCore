@@ -26,11 +26,11 @@ namespace WalletConfig
     const std::string daemonName = "RezinCCd";
 
     /* The name to call this wallet */
-    const std::string walletName = "RezinCC-wallet";
+    const std::string walletName = "RezinCC-Wallet";
 
     /* The name of service/walletd, the programmatic rpc interface to a
        wallet */
-    const std::string walletdName = "RezinCC-walletd";
+    const std::string walletdName = "RezinCC-Service";
 
     /* The full name of your crypto */
     const std::string coinName = std::string(CryptoNote::CRYPTONOTE_NAME);

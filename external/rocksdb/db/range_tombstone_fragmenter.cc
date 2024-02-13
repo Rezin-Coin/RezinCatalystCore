@@ -9,14 +9,14 @@
 #include <functional>
 #include <set>
 
-#include <stdio.h>
 #include <cinttypes>
+#include <stdio.h>
 
 #include "util/autovector.h"
 #include "util/kv_map.h"
 #include "util/vector_iterator.h"
 
-namespace ROCKSDB_NAMESPACE {
+namespace rocksdb {
 
 FragmentedRangeTombstoneList::FragmentedRangeTombstoneList(
     std::unique_ptr<InternalIterator> unfragmented_tombstones,
@@ -436,4 +436,4 @@ FragmentedRangeTombstoneIterator::SplitBySnapshot(
   return splits;
 }
 
-}  // namespace ROCKSDB_NAMESPACE
+}  // namespace rocksdb

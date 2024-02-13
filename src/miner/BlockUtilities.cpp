@@ -67,12 +67,6 @@ Crypto::Hash getBlockHash(const CryptoNote::BlockTemplate &block)
 {
     auto blockHashingBinaryArray = getBlockHashingBinaryArray(block);
 
-    if (block.majorVersion >= CryptoNote::BLOCK_MAJOR_VERSION_2)
-    {
-        const auto &parentBlock = getParentBlockHashingBinaryArray(block, false);
-        blockHashingBinaryArray.insert(blockHashingBinaryArray.end(), parentBlock.begin(), parentBlock.end());
-    }
-
     return CryptoNote::getObjectHash(blockHashingBinaryArray);
 }
 
@@ -83,9 +77,7 @@ Crypto::Hash getMerkleRoot(const CryptoNote::BlockTemplate &block)
 
 Crypto::Hash getBlockLongHash(const CryptoNote::BlockTemplate &block)
 {
-    const std::vector<uint8_t> rawHashingBlock = block.majorVersion == CryptoNote::BLOCK_MAJOR_VERSION_1
-                                                     ? getBlockHashingBinaryArray(block)
-                                                     : getParentBlockHashingBinaryArray(block, true);
+    const std::vector<uint8_t> rawHashingBlock = getBlockHashingBinaryArray(block);
 
     Crypto::Hash hash;
 

@@ -22,7 +22,7 @@
 #include "util/random.h"
 #include "util/string_util.h"
 
-namespace ROCKSDB_NAMESPACE {
+namespace rocksdb {
 
 class DBPropertiesTest : public DBTestBase {
  public:
@@ -210,11 +210,12 @@ void VerifySimilar(uint64_t a, uint64_t b, double bias) {
   }
 }
 
-void VerifyTableProperties(
-    const TableProperties& base_tp, const TableProperties& new_tp,
-    double filter_size_bias = CACHE_LINE_SIZE >= 256 ? 0.15 : 0.1,
-    double index_size_bias = 0.1, double data_size_bias = 0.1,
-    double num_data_blocks_bias = 0.05) {
+void VerifyTableProperties(const TableProperties& base_tp,
+                           const TableProperties& new_tp,
+                           double filter_size_bias = 0.1,
+                           double index_size_bias = 0.1,
+                           double data_size_bias = 0.1,
+                           double num_data_blocks_bias = 0.05) {
   VerifySimilar(base_tp.data_size, new_tp.data_size, data_size_bias);
   VerifySimilar(base_tp.index_size, new_tp.index_size, index_size_bias);
   VerifySimilar(base_tp.filter_size, new_tp.filter_size, filter_size_bias);
@@ -265,8 +266,7 @@ void GetExpectedTableProperties(
        // discount 1 byte as value size is not encoded in value delta encoding
        (value_delta_encoding ? 1 : 0));
   expected_tp->filter_size =
-      kTableCount * ((kKeysPerTable * kBloomBitsPerKey + 7) / 8 +
-                     /*average-ish overhead*/ CACHE_LINE_SIZE / 2);
+      kTableCount * (kKeysPerTable * kBloomBitsPerKey / 8);
 }
 }  // anonymous namespace
 
@@ -391,16 +391,16 @@ TEST_F(DBPropertiesTest, ReadLatencyHistogramByLevel) {
   options.max_bytes_for_level_base = 4500 << 10;
   options.target_file_size_base = 98 << 10;
   options.max_write_buffer_number = 2;
-  options.statistics = ROCKSDB_NAMESPACE::CreateDBStatistics();
+  options.statistics = rocksdb::CreateDBStatistics();
   options.max_open_files = 11;  // Make sure no proloading of table readers
 
   // RocksDB sanitize max open files to at least 20. Modify it back.
-  ROCKSDB_NAMESPACE::SyncPoint::GetInstance()->SetCallBack(
+  rocksdb::SyncPoint::GetInstance()->SetCallBack(
       "SanitizeOptions::AfterChangeMaxOpenFiles", [&](void* arg) {
         int* max_open_files = static_cast<int*>(arg);
         *max_open_files = 11;
       });
-  ROCKSDB_NAMESPACE::SyncPoint::GetInstance()->EnableProcessing();
+  rocksdb::SyncPoint::GetInstance()->EnableProcessing();
 
   BlockBasedTableOptions table_options;
   table_options.no_block_cache = true;
@@ -448,7 +448,7 @@ TEST_F(DBPropertiesTest, ReadLatencyHistogramByLevel) {
 
   // Reopen and issue iterating. See thee latency tracked
   ReopenWithColumnFamilies({"default", "pikachu"}, options);
-  ROCKSDB_NAMESPACE::SyncPoint::GetInstance()->DisableProcessing();
+  rocksdb::SyncPoint::GetInstance()->DisableProcessing();
   ASSERT_TRUE(dbfull()->GetProperty("rocksdb.cf-file-histogram", &prop));
   ASSERT_EQ(std::string::npos, prop.find("** Level 0 read latency histogram"));
   ASSERT_EQ(std::string::npos, prop.find("** Level 1 read latency histogram"));
@@ -1631,11 +1631,7 @@ TEST_F(DBPropertiesTest, BlockCacheProperties) {
 
   // Test with empty block cache.
   constexpr size_t kCapacity = 100;
-  LRUCacheOptions co;
-  co.capacity = kCapacity;
-  co.num_shard_bits = 0;
-  co.metadata_charge_policy = kDontChargeCacheMetadata;
-  auto block_cache = NewLRUCache(co);
+  auto block_cache = NewLRUCache(kCapacity, 0 /*num_shard_bits*/);
   table_options.block_cache = block_cache;
   table_options.no_block_cache = false;
   options.table_factory.reset(NewBlockBasedTableFactory(table_options));
@@ -1702,10 +1698,10 @@ TEST_F(DBPropertiesTest, BlockCacheProperties) {
 }
 
 #endif  // ROCKSDB_LITE
-}  // namespace ROCKSDB_NAMESPACE
+}  // namespace rocksdb
 
 int main(int argc, char** argv) {
-  ROCKSDB_NAMESPACE::port::InstallStackTraceHandler();
+  rocksdb::port::InstallStackTraceHandler();
   ::testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();
 }

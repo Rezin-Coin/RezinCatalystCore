@@ -77,18 +77,16 @@ namespace CryptoNote
       private:
         std::vector<CryptoNote::TransactionExtraField>::const_iterator find(const std::type_info &t) const
         {
-            return std::find_if(
-                fields.begin(),
-                fields.end(),
-                [&t](const CryptoNote::TransactionExtraField &f) { return t == f.type(); });
+            return std::find_if(fields.begin(), fields.end(), [&t](const CryptoNote::TransactionExtraField &f) {
+                return t == f.type();
+            });
         }
 
         std::vector<CryptoNote::TransactionExtraField>::iterator find(const std::type_info &t)
         {
-            return std::find_if(
-                fields.begin(),
-                fields.end(),
-                [&t](const CryptoNote::TransactionExtraField &f) { return t == f.type(); });
+            return std::find_if(fields.begin(), fields.end(), [&t](const CryptoNote::TransactionExtraField &f) {
+                return t == f.type();
+            });
         }
 
         std::vector<CryptoNote::TransactionExtraField> fields;

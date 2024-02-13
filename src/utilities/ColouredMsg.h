@@ -15,7 +15,10 @@ template<typename T> class ColouredMsg
     ColouredMsg(const T msg, const Common::Console::Color colour): msg(msg), colour(colour) {}
 
     ColouredMsg(const T msg, const int padding, const Common::Console::Color colour):
-        msg(msg), colour(colour), padding(padding), pad(true)
+        msg(msg),
+        colour(colour),
+        padding(padding),
+        pad(true)
     {
     }
 
@@ -73,9 +76,9 @@ template<typename T> class SuccessMsg : public ColouredMsg<T>
 template<typename T> class InformationMsg : public ColouredMsg<T>
 {
   public:
-    explicit InformationMsg(T msg): ColouredMsg<T>(msg, Common::Console::Color::BrightYellow) {}
+    explicit InformationMsg(T msg): ColouredMsg<T>(msg, Common::Console::Color::BrightCyan) {}
 
-    explicit InformationMsg(T msg, int padding): ColouredMsg<T>(msg, padding, Common::Console::Color::BrightYellow) {}
+    explicit InformationMsg(T msg, int padding): ColouredMsg<T>(msg, padding, Common::Console::Color::BrightCyan) {}
 };
 
 template<typename T> class WarningMsg : public ColouredMsg<T>
@@ -84,4 +87,36 @@ template<typename T> class WarningMsg : public ColouredMsg<T>
     explicit WarningMsg(T msg): ColouredMsg<T>(msg, Common::Console::Color::BrightRed) {}
 
     explicit WarningMsg(T msg, int padding): ColouredMsg<T>(msg, padding, Common::Console::Color::BrightRed) {}
+};
+
+template<typename T> class NormalMsg : public ColouredMsg<T>
+{
+  public:
+    explicit NormalMsg(T msg): ColouredMsg<T>(msg, Common::Console::Color::Green) {}
+
+    explicit NormalMsg(T msg, int padding): ColouredMsg<T>(msg, padding, Common::Console::Color::Green) {}
+};
+
+template<typename T> class MagentaMsg : public ColouredMsg<T>
+{
+  public:
+    explicit MagentaMsg(T msg): ColouredMsg<T>(msg, Common::Console::Color::BrightMagenta) {}
+
+    explicit MagentaMsg(T msg, int padding): ColouredMsg<T>(msg, padding, Common::Console::Color::BrightMagenta) {}
+};
+
+template<typename T> class WhiteMsg : public ColouredMsg<T>
+{
+  public:
+    explicit WhiteMsg(T msg): ColouredMsg<T>(msg, Common::Console::Color::White) {}
+
+    explicit WhiteMsg(T msg, int padding): ColouredMsg<T>(msg, padding, Common::Console::Color::White) {}
+};
+
+template<typename T> class YellowMsg : public ColouredMsg<T>
+{
+  public:
+    explicit YellowMsg(T msg): ColouredMsg<T>(msg, Common::Console::Color::Yellow) {}
+
+    explicit YellowMsg(T msg, int padding): ColouredMsg<T>(msg, padding, Common::Console::Color::Yellow) {}
 };

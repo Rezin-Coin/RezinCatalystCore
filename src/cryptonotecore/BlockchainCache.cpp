@@ -238,6 +238,7 @@ namespace CryptoNote
         blockInfos.get<BlockIndexTag>().push_back(std::move(blockInfo));
 
         auto blockIndex = cachedBlock.getBlockIndex();
+        assert(blockIndex == blockInfos.size() + startIndex - 1);
 
         for (const auto &keyImage : validatorState.spentKeyImages)
         {
@@ -392,17 +393,11 @@ namespace CryptoNote
     {
         auto lowerBoundFunction = [](std::vector<PackedOutIndex>::iterator begin,
                                      std::vector<PackedOutIndex>::iterator end,
-                                     uint32_t splitBlockIndex) -> std::vector<PackedOutIndex>::iterator
-        {
-            return std::lower_bound(
-                begin,
-                end,
-                splitBlockIndex,
-                [](PackedOutIndex outputIndex, uint32_t splitIndex)
-                {
-                    // all outputs in it->second.outputs are sorted according to blockIndex + transactionIndex
-                    return outputIndex.blockIndex < splitIndex;
-                });
+                                     uint32_t splitBlockIndex) -> std::vector<PackedOutIndex>::iterator {
+            return std::lower_bound(begin, end, splitBlockIndex, [](PackedOutIndex outputIndex, uint32_t splitIndex) {
+                // all outputs in it->second.outputs are sorted according to blockIndex + transactionIndex
+                return outputIndex.blockIndex < splitIndex;
+            });
         };
 
         splitGlobalIndexes(
@@ -644,11 +639,10 @@ namespace CryptoNote
         /* Timestamp is in this segment */
         if (index.front().timestamp >= timestamp)
         {
-            const auto bound = std::lower_bound(
-                index.begin(),
-                index.end(),
-                timestamp,
-                [](const auto &blockInfo, uint64_t value) { return blockInfo.timestamp < value; });
+            const auto bound =
+                std::lower_bound(index.begin(), index.end(), timestamp, [](const auto &blockInfo, uint64_t value) {
+                    return blockInfo.timestamp < value;
+                });
 
             uint64_t result = startIndex + std::distance(index.begin(), bound);
 
@@ -680,10 +674,9 @@ namespace CryptoNote
         {
             // we know the timestamp is in current segment for sure
             auto bound = std::lower_bound(
-                index.begin(),
-                index.end(),
-                timestamp,
-                [](const CachedBlockInfo &blockInfo, uint64_t value) { return blockInfo.timestamp < value; });
+                index.begin(), index.end(), timestamp, [](const CachedBlockInfo &blockInfo, uint64_t value) {
+                    return blockInfo.timestamp < value;
+                });
 
             return startIndex + static_cast<uint32_t>(std::distance(index.begin(), bound));
         }
@@ -1061,12 +1054,9 @@ namespace CryptoNote
 
         /* Starting from the end of the outputs vector, return the first output
            that is unlocked */
-        const auto end =
-            std::find_if(
-                outs.rbegin(),
-                outs.rend(),
-                [&](const auto index) { return index.blockIndex <= blockIndex - currency.minedMoneyUnlockWindow(); })
-                .base();
+        const auto end = std::find_if(outs.rbegin(), outs.rend(), [&](const auto index) {
+                             return index.blockIndex <= blockIndex - currency.minedMoneyUnlockWindow();
+                         }).base();
 
         /* Distance between the first output and the selected output, in the vector */
         uint32_t dist = static_cast<uint32_t>(std::distance(outs.begin(), end));
@@ -1118,8 +1108,7 @@ namespace CryptoNote
             amount,
             blockIndex,
             globalIndexes,
-            [&](const CachedTransactionInfo &info, PackedOutIndex index, uint32_t globalIndex)
-            {
+            [&](const CachedTransactionInfo &info, PackedOutIndex index, uint32_t globalIndex) {
                 if (!isTransactionSpendTimeUnlocked(info.unlockTime, blockIndex))
                 {
                     return ExtractOutputKeysResult::OUTPUT_LOCKED;
@@ -1144,8 +1133,7 @@ namespace CryptoNote
             amount,
             getTopBlockIndex(),
             globalIndexes,
-            [&](const CachedTransactionInfo &info, PackedOutIndex index, uint32_t globalIndex)
-            {
+            [&](const CachedTransactionInfo &info, PackedOutIndex index, uint32_t globalIndex) {
                 outputReferences.push_back(std::make_pair(info.transactionHash, index.outputIndex));
                 return ExtractOutputKeysResult::SUCCESS;
             });
@@ -1293,8 +1281,7 @@ namespace CryptoNote
             amount,
             getTopBlockIndex(),
             globalIndexes,
-            [&](const CachedTransactionInfo &info, PackedOutIndex index, uint32_t globalIndex)
-            {
+            [&](const CachedTransactionInfo &info, PackedOutIndex index, uint32_t globalIndex) {
                 outIndexes.push_back(index);
                 return ExtractOutputKeysResult::SUCCESS;
             });
@@ -1478,7 +1465,6 @@ namespace CryptoNote
         upgradeManager.addMajorBlockVersion(BLOCK_MAJOR_VERSION_4, currency.upgradeHeight(BLOCK_MAJOR_VERSION_4));
         upgradeManager.addMajorBlockVersion(BLOCK_MAJOR_VERSION_5, currency.upgradeHeight(BLOCK_MAJOR_VERSION_5));
         upgradeManager.addMajorBlockVersion(BLOCK_MAJOR_VERSION_6, currency.upgradeHeight(BLOCK_MAJOR_VERSION_6));
-        upgradeManager.addMajorBlockVersion(BLOCK_MAJOR_VERSION_7, currency.upgradeHeight(BLOCK_MAJOR_VERSION_7));
         return upgradeManager.getBlockMajorVersion(height);
     }
 

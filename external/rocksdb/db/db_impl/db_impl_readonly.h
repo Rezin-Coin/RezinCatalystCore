@@ -11,15 +11,11 @@
 #include <vector>
 #include "db/db_impl/db_impl.h"
 
-namespace ROCKSDB_NAMESPACE {
+namespace rocksdb {
 
 class DBImplReadOnly : public DBImpl {
  public:
   DBImplReadOnly(const DBOptions& options, const std::string& dbname);
-  // No copying allowed
-  DBImplReadOnly(const DBImplReadOnly&) = delete;
-  void operator=(const DBImplReadOnly&) = delete;
-
   virtual ~DBImplReadOnly();
 
   // Implementations of the DB interface
@@ -131,7 +127,11 @@ class DBImplReadOnly : public DBImpl {
 
  private:
   friend class DB;
+
+  // No copying allowed
+  DBImplReadOnly(const DBImplReadOnly&);
+  void operator=(const DBImplReadOnly&);
 };
-}  // namespace ROCKSDB_NAMESPACE
+}  // namespace rocksdb
 
 #endif  // !ROCKSDB_LITE

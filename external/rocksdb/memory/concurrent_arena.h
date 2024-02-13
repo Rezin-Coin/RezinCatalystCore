@@ -13,7 +13,6 @@
 #include <utility>
 #include "memory/allocator.h"
 #include "memory/arena.h"
-#include "port/lang.h"
 #include "port/likely.h"
 #include "util/core_local.h"
 #include "util/mutexlock.h"
@@ -27,7 +26,7 @@
 #define ROCKSDB_FIELD_UNUSED
 #endif  // __clang__
 
-namespace ROCKSDB_NAMESPACE {
+namespace rocksdb {
 
 class Logger;
 
@@ -50,7 +49,7 @@ class ConcurrentArena : public Allocator {
 
   char* Allocate(size_t bytes) override {
     return AllocateImpl(bytes, false /*force_arena*/,
-                        [this, bytes]() { return arena_.Allocate(bytes); });
+                        [=]() { return arena_.Allocate(bytes); });
   }
 
   char* AllocateAligned(size_t bytes, size_t huge_page_size = 0,
@@ -59,11 +58,9 @@ class ConcurrentArena : public Allocator {
     assert(rounded_up >= bytes && rounded_up < bytes + sizeof(void*) &&
            (rounded_up % sizeof(void*)) == 0);
 
-    return AllocateImpl(rounded_up, huge_page_size != 0 /*force_arena*/,
-                        [this, rounded_up, huge_page_size, logger]() {
-                          return arena_.AllocateAligned(rounded_up,
-                                                        huge_page_size, logger);
-                        });
+    return AllocateImpl(rounded_up, huge_page_size != 0 /*force_arena*/, [=]() {
+      return arena_.AllocateAligned(rounded_up, huge_page_size, logger);
+    });
   }
 
   size_t ApproximateMemoryUsage() const {
@@ -215,4 +212,4 @@ class ConcurrentArena : public Allocator {
   ConcurrentArena& operator=(const ConcurrentArena&) = delete;
 };
 
-}  // namespace ROCKSDB_NAMESPACE
+}  // namespace rocksdb

@@ -24,8 +24,7 @@ namespace System
             bindingContext.groupNext = nullptr;
             bindingContext.groupPrev = nullptr;
             bindingContext.group = nullptr;
-            bindingContext.procedure = [this]
-            {
+            bindingContext.procedure = [this] {
                 try
                 {
                     new (resultStorage) ResultType(this->target());
@@ -111,8 +110,7 @@ namespace System
             bindingContext.groupNext = nullptr;
             bindingContext.groupPrev = nullptr;
             bindingContext.group = nullptr;
-            bindingContext.procedure = [this]
-            {
+            bindingContext.procedure = [this] {
                 try
                 {
                     this->target();

@@ -29,6 +29,7 @@
 #include <logger/Logger.h>
 #include <logging/LoggerManager.h>
 #include <mnemonics/Mnemonics.h>
+#include <noderpcproxy/NodeRpcProxy.h>
 #include <utilities/Addresses.h>
 #include <utilities/Utilities.h>
 #include <walletbackend/Constants.h>
@@ -376,6 +377,67 @@ std::tuple<Error, std::shared_ptr<WalletBackend>> WalletBackend::createWallet(
     return {error, wallet};
 }
 
+bool WalletBackend::tryUpgradeWalletFormat(
+    const std::string filename,
+    const std::string password,
+    const std::string daemonHost,
+    const uint16_t daemonPort)
+{
+    try
+    {
+        const auto logManager = std::make_shared<Logging::LoggerManager>();
+
+        /* Currency contains our coin parameters, such as decimal places, supply */
+        const CryptoNote::Currency currency = CryptoNote::CurrencyBuilder(logManager).currency();
+
+        System::Dispatcher localDispatcher;
+        System::Dispatcher *dispatcher = &localDispatcher;
+
+        /* Our connection to nolaniumd */
+        std::unique_ptr<CryptoNote::INode> node(new CryptoNote::NodeRpcProxy(daemonHost, daemonPort, 10, logManager));
+
+        /* Save the old wallet to the backup file via simple file copy operation */
+        std::error_code backupError;
+
+        fs::path filepath = filename;
+        fs::path backupFilepath = filepath.parent_path() / "old-version-backup-" += filepath.filename();
+
+        fs::copy(filename, backupFilepath, fs::copy_options::overwrite_existing, backupError);
+
+        /* If we could not backup the file then instantly fail for safety sake */
+        if (backupError)
+        {
+            return false;
+        }
+
+        CryptoNote::WalletGreen wallet(*dispatcher, currency, *node, logManager);
+
+        /* Attempt to open the specified file as a wallet */
+        wallet.load(filename, password);
+
+        /* Cool, it worked. Upgrade to the new format. */
+        const std::string json = wallet.toNewFormatJSON();
+
+        /* We have to close the wallet before we can overwrite it */
+        wallet.shutdown();
+
+        /* Save to disk with the new format. */
+        Error error = saveWalletJSONToDisk(json, filename, password);
+
+        if (error)
+        {
+            return false;
+        }
+
+        return true;
+    }
+    /* Not a WalletGreen format. */
+    catch (const std::system_error &)
+    {
+        return false;
+    }
+}
+
 /* Opens a wallet already on disk with the given filename + password */
 std::tuple<Error, std::shared_ptr<WalletBackend>> WalletBackend::openWallet(
     const std::string filename,
@@ -391,25 +453,31 @@ std::tuple<Error, std::shared_ptr<WalletBackend>> WalletBackend::openWallet(
     /* Check we successfully opened the file */
     if (!file)
     {
-        return {
-            Error(
-                FILENAME_NON_EXISTENT,
-                "The filename you are attempting to open does not exist, "
-                "or the wallet does not have permission to open it. Error: "
-                    + std::string(strerror(errno))),
-            nullptr};
+        return {FILENAME_NON_EXISTENT, nullptr};
     }
 
     /* Read file into a buffer */
     std::vector<char> buffer((std::istreambuf_iterator<char>(file)), (std::istreambuf_iterator<char>()));
 
     /* Check that the decrypted data has the 'isAWallet' identifier,
-       and remove if it does. If it doesn't, return an error. */
+       and remove it it does. If it doesn't, return an error. */
     Error error = hasMagicIdentifier(buffer, Constants::IS_A_WALLET_IDENTIFIER, NOT_A_WALLET_FILE, NOT_A_WALLET_FILE);
 
+    /* Not a WalletBackend wallet */
     if (error)
     {
-        return {error, nullptr};
+        /* See if it's a WalletGreen wallet, and upgrade if it is */
+        const bool isWalletGreenFile = tryUpgradeWalletFormat(filename, password, daemonHost, daemonPort);
+
+        if (isWalletGreenFile)
+        {
+            /* Then try and open again */
+            return openWallet(filename, password, daemonHost, daemonPort, daemonSSL, syncThreadCount);
+        }
+        else
+        {
+            return {error, nullptr};
+        }
     }
 
     using namespace CryptoPP;
@@ -483,6 +551,15 @@ std::tuple<Error, std::shared_ptr<WalletBackend>> WalletBackend::openWallet(
 
     try
     {
+        const bool dumpJson = false;
+
+        /* For debugging purposes */
+        if (dumpJson)
+        {
+            std::ofstream o("walletData.json");
+            o << decryptedData << std::endl;
+        }
+
         rapidjson::Document walletJson;
 
         if (walletJson.Parse(decryptedData.c_str()).HasParseError())
@@ -563,11 +640,7 @@ Error WalletBackend::saveWalletJSONToDisk(std::string walletJSON, std::string fi
             Logger::FATAL,
             {Logger::FILESYSTEM, Logger::SAVE});
 
-        return Error(
-            INVALID_WALLET_FILENAME,
-            "The filename you are attempting to open does not exist, "
-            "or the wallet does not have permission to open it. Error: "
-                + std::string(strerror(errno)));
+        return INVALID_WALLET_FILENAME;
     }
 
     std::string saltString = std::string(salt, salt + sizeof(salt));
@@ -639,7 +712,7 @@ Error WalletBackend::save() const
    blockchain synchronizer first (Call save()) */
 Error WalletBackend::unsafeSave() const
 {
-    return WalletBackend::saveWalletJSONToDisk(unsafeToJSON(), m_filename, m_password);
+    return WalletBackend::saveWalletJSONToDisk(toJSON(), m_filename, m_password);
 }
 
 /* Get the balance for one subwallet (error, unlocked, locked) */
@@ -692,12 +765,17 @@ bool WalletBackend::removePreparedTransaction(const Crypto::Hash &transactionHas
                << " as it does not exist in the prepared transaction container.";
     }
 
-    Logger::logger.log(stream.str(), Logger::INFO, {Logger::TRANSACTIONS});
+    Logger::logger.log(
+        stream.str(),
+        Logger::INFO,
+        { Logger::TRANSACTIONS }
+    );
 
     return removed;
 }
 
-std::tuple<Error, Crypto::Hash> WalletBackend::sendPreparedTransaction(const Crypto::Hash transactionHash)
+std::tuple<Error, Crypto::Hash> WalletBackend::sendPreparedTransaction(
+    const Crypto::Hash transactionHash)
 {
     std::scoped_lock lock(m_transactionMutex);
 
@@ -710,7 +788,11 @@ std::tuple<Error, Crypto::Hash> WalletBackend::sendPreparedTransaction(const Cry
 
     const auto preparedTransaction = it->second;
 
-    const auto [error, hash] = SendTransaction::sendPreparedTransaction(preparedTransaction, m_daemon, m_subWallets);
+    const auto [error, hash] = SendTransaction::sendPreparedTransaction(
+        preparedTransaction,
+        m_daemon,
+        m_subWallets
+    );
 
     /* Remove the prepared transaction if we just sent it or it's no longer
      * valid */
@@ -734,7 +816,14 @@ std::tuple<Error, Crypto::Hash, WalletTypes::PreparedTransactionInfo> WalletBack
     std::scoped_lock lock(m_transactionMutex);
 
     const auto [error, hash, preparedTransaction] = SendTransaction::sendTransactionBasic(
-        destination, amount, paymentID, m_daemon, m_subWallets, sendAll, sendTransaction);
+        destination,
+        amount,
+        paymentID,
+        m_daemon,
+        m_subWallets,
+        sendAll,
+        sendTransaction
+    );
 
     if (!sendTransaction && !error)
     {
@@ -770,7 +859,8 @@ std::tuple<Error, Crypto::Hash, WalletTypes::PreparedTransactionInfo> WalletBack
         unlockTime,
         extraData,
         sendAll,
-        sendTransaction);
+        sendTransaction
+    );
 
     if (!sendTransaction && !error)
     {
@@ -791,103 +881,47 @@ std::tuple<Error, Crypto::Hash> WalletBackend::sendFusionTransactionAdvanced(
     const uint64_t mixin,
     const std::vector<std::string> subWalletsToTakeFrom,
     const std::string destination,
-    const std::vector<uint8_t> extraData,
-    const std::optional<uint64_t> optimizeTarget)
+    const std::vector<uint8_t> extraData)
 {
     std::scoped_lock lock(m_transactionMutex);
 
     return SendTransaction::sendFusionTransactionAdvanced(
-        mixin, subWalletsToTakeFrom, destination, m_daemon, m_subWallets, extraData, optimizeTarget);
+        mixin, subWalletsToTakeFrom, destination, m_daemon, m_subWallets, extraData);
 }
 
 void WalletBackend::reset(uint64_t scanHeight, uint64_t timestamp)
 {
-    m_syncRAIIWrapper->pauseSynchronizerToRunFunction(
-        [this, scanHeight, timestamp]() mutable
+    m_syncRAIIWrapper->pauseSynchronizerToRunFunction([this, scanHeight, timestamp]() mutable {
+        /* Though the wallet synchronizer can support both a timestamp and a
+           scanheight, we need a fixed scan height to cut transactions from.
+           Since a transaction in block 10 could have a timestamp before a
+           transaction in block 9, we can't rely on timestamps to reset accurately. */
+        if (timestamp != 0)
         {
-            /* Though the wallet synchronizer can support both a timestamp and a
-               scanheight, we need a fixed scan height to cut transactions from.
-               Since a transaction in block 10 could have a timestamp before a
-               transaction in block 9, we can't rely on timestamps to reset accurately. */
-            if (timestamp != 0)
-            {
-                scanHeight = Utilities::timestampToScanHeight(timestamp);
-                timestamp = 0;
-            }
+            scanHeight = Utilities::timestampToScanHeight(timestamp);
+            timestamp = 0;
+        }
 
-            /* Empty the sync status and reset the start height */
-            m_walletSynchronizer->reset(scanHeight);
+        /* Empty the sync status and reset the start height */
+        m_walletSynchronizer->reset(scanHeight);
 
-            /* Reset transactions, inputs, etc */
-            m_subWallets->reset(scanHeight);
+        /* Reset transactions, inputs, etc */
+        m_subWallets->reset(scanHeight);
 
-            /* Save the resetted wallet - don't need safe save, already stopped wallet
-               synchronizer */
-            unsafeSave();
+        /* Save the resetted wallet - don't need safe save, already stopped wallet
+           synchronizer */
+        unsafeSave();
 
-            return 0;
-        });
-}
-
-void WalletBackend::rewind(uint64_t scanHeight, uint64_t timestamp)
-{
-    m_syncRAIIWrapper->pauseSynchronizerToRunFunction(
-        [this, scanHeight, timestamp]() mutable
-        {
-            /* Though the wallet synchronizer can support both a timestamp and a
-               scanheight, we need a fixed scan height to cut transactions from.
-               Since a transaction in block 10 could have a timestamp before a
-               transaction in block 9, we can't rely on timestamps to reset accurately. */
-            if (timestamp != 0)
-            {
-                scanHeight = Utilities::timestampToScanHeight(timestamp);
-                timestamp = 0;
-            }
-
-            /* Empty the sync status and rewind the start height */
-            m_walletSynchronizer->rewind(scanHeight);
-
-            /* rewind transactions, inputs, etc */
-            m_subWallets->rewind(scanHeight);
-
-            /* Save the resetted wallet - don't need safe save, already stopped wallet
-               synchronizer */
-            unsafeSave();
-
-            return 0;
-        });
-}
-
-void WalletBackend::scanRange(uint64_t scanHeight, uint64_t endScanHeight)
-{
-    m_syncRAIIWrapper->pauseSynchronizerToRunFunction(
-        [this, scanHeight, endScanHeight]() mutable
-        {
-            /* Empty the sync status and reset the start height */
-            m_walletSynchronizer->rewind(scanHeight);
-
-            /* Reset transactions, inputs, etc */
-            m_subWallets->rewind(scanHeight);
-
-            /* Set endScanHeight so synchronizer knows when to stop and resume at top of the chain */
-            m_walletSynchronizer->setEndScanHeight(endScanHeight);
-
-            /* Save the resetted wallet - don't need safe save, already stopped wallet
-               synchronizer */
-            unsafeSave();
-
-            return 0;
-        });
+        return 0;
+    });
 }
 
 std::tuple<Error, std::string, Crypto::SecretKey, uint64_t> WalletBackend::addSubWallet()
 {
-    return m_syncRAIIWrapper->pauseSynchronizerToRunFunction(
-        [this]()
-        {
-            /* Add the sub wallet */
-            return m_subWallets->addSubWallet();
-        });
+    return m_syncRAIIWrapper->pauseSynchronizerToRunFunction([this]() {
+        /* Add the sub wallet */
+        return m_subWallets->addSubWallet();
+    });
 }
 
 std::tuple<Error, std::string>
@@ -898,60 +932,57 @@ std::tuple<Error, std::string>
         return {error, std::string()};
     }
 
-    return m_syncRAIIWrapper->pauseSynchronizerToRunFunction(
-        [&, this]()
+    return m_syncRAIIWrapper->pauseSynchronizerToRunFunction([&, this]() {
+        /* Add the sub wallet */
+        const auto [error, address] = m_subWallets->importSubWallet(privateSpendKey, scanHeight);
+
+        if (!error)
         {
-            /* Add the sub wallet */
-            const auto [error, address] = m_subWallets->importSubWallet(privateSpendKey, scanHeight);
+            /* If we're not making a new wallet, check if we need to reset the scan
+               height of the wallet synchronizer, to pick up the new wallet data
+               from the requested height */
+            uint64_t currentHeight = m_walletSynchronizer->getCurrentScanHeight();
 
-            if (!error)
+            if (currentHeight >= scanHeight)
             {
-                /* If we're not making a new wallet, check if we need to reset the scan
-                   height of the wallet synchronizer, to pick up the new wallet data
-                   from the requested height */
-                uint64_t currentHeight = m_walletSynchronizer->getCurrentScanHeight();
+                /* Empty the sync status and reset the start height */
+                m_walletSynchronizer->reset(scanHeight);
 
-                if (currentHeight >= scanHeight)
-                {
-                    /* Empty the sync status and reset the start height */
-                    m_walletSynchronizer->reset(scanHeight);
-
-                    /* Reset transactions, inputs, etc */
-                    m_subWallets->rewind(scanHeight);
-                }
+                /* Reset transactions, inputs, etc */
+                m_subWallets->reset(scanHeight);
             }
+        }
 
-            return std::make_tuple(error, address);
-        });
+        return std::make_tuple(error, address);
+    });
 }
 
-std::tuple<Error, std::string> WalletBackend::importSubWallet(const uint64_t walletIndex, const uint64_t scanHeight)
+std::tuple<Error, std::string>
+    WalletBackend::importSubWallet(const uint64_t walletIndex, const uint64_t scanHeight)
 {
-    return m_syncRAIIWrapper->pauseSynchronizerToRunFunction(
-        [&, this]()
+    return m_syncRAIIWrapper->pauseSynchronizerToRunFunction([&, this]() {
+        /* Add the sub wallet */
+        const auto [error, address] = m_subWallets->importSubWallet(walletIndex, scanHeight);
+
+        if (!error)
         {
-            /* Add the sub wallet */
-            const auto [error, address] = m_subWallets->importSubWallet(walletIndex, scanHeight);
+            /* If we're not making a new wallet, check if we need to reset the scan
+               height of the wallet synchronizer, to pick up the new wallet data
+               from the requested height */
+            uint64_t currentHeight = m_walletSynchronizer->getCurrentScanHeight();
 
-            if (!error)
+            if (currentHeight >= scanHeight)
             {
-                /* If we're not making a new wallet, check if we need to reset the scan
-                   height of the wallet synchronizer, to pick up the new wallet data
-                   from the requested height */
-                uint64_t currentHeight = m_walletSynchronizer->getCurrentScanHeight();
+                /* Empty the sync status and reset the start height */
+                m_walletSynchronizer->reset(scanHeight);
 
-                if (currentHeight >= scanHeight)
-                {
-                    /* Empty the sync status and reset the start height */
-                    m_walletSynchronizer->reset(scanHeight);
-
-                    /* Reset transactions, inputs, etc */
-                    m_subWallets->reset(scanHeight);
-                }
+                /* Reset transactions, inputs, etc */
+                m_subWallets->reset(scanHeight);
             }
+        }
 
-            return std::make_tuple(error, address);
-        });
+        return std::make_tuple(error, address);
+    });
 }
 
 std::tuple<Error, std::string>
@@ -962,31 +993,29 @@ std::tuple<Error, std::string>
         return {error, std::string()};
     }
 
-    return m_syncRAIIWrapper->pauseSynchronizerToRunFunction(
-        [&, this]()
+    return m_syncRAIIWrapper->pauseSynchronizerToRunFunction([&, this]() {
+        /* Add the sub wallet */
+        const auto [error, address] = m_subWallets->importViewSubWallet(publicSpendKey, scanHeight);
+
+        if (!error)
         {
-            /* Add the sub wallet */
-            const auto [error, address] = m_subWallets->importViewSubWallet(publicSpendKey, scanHeight);
+            /* If we're not making a new wallet, check if we need to reset the scan
+               height of the wallet synchronizer, to pick up the new wallet data
+               from the requested height */
+            uint64_t currentHeight = m_walletSynchronizer->getCurrentScanHeight();
 
-            if (!error)
+            if (currentHeight >= scanHeight)
             {
-                /* If we're not making a new wallet, check if we need to reset the scan
-                   height of the wallet synchronizer, to pick up the new wallet data
-                   from the requested height */
-                uint64_t currentHeight = m_walletSynchronizer->getCurrentScanHeight();
+                /* Empty the sync status and reset the start height */
+                m_walletSynchronizer->reset(scanHeight);
 
-                if (currentHeight >= scanHeight)
-                {
-                    /* Empty the sync status and reset the start height */
-                    m_walletSynchronizer->reset(scanHeight);
-
-                    /* Reset transactions, inputs, etc */
-                    m_subWallets->reset(scanHeight);
-                }
+                /* Reset transactions, inputs, etc */
+                m_subWallets->reset(scanHeight);
             }
+        }
 
-            return std::make_tuple(error, address);
-        });
+        return std::make_tuple(error, address);
+    });
 }
 
 Error WalletBackend::deleteSubWallet(const std::string address)
@@ -998,8 +1027,8 @@ Error WalletBackend::deleteSubWallet(const std::string address)
         return error;
     }
 
-    return m_syncRAIIWrapper->pauseSynchronizerToRunFunction([&, this]()
-                                                             { return m_subWallets->deleteSubWallet(address); });
+    return m_syncRAIIWrapper->pauseSynchronizerToRunFunction(
+        [&, this]() { return m_subWallets->deleteSubWallet(address); });
 }
 
 bool WalletBackend::isViewWallet() const
@@ -1060,8 +1089,7 @@ Error WalletBackend::changePassword(const std::string newPassword)
     return save();
 }
 
-std::tuple<Error, Crypto::PublicKey, Crypto::SecretKey, uint64_t>
-    WalletBackend::getSpendKeys(const std::string &address) const
+std::tuple<Error, Crypto::PublicKey, Crypto::SecretKey, uint64_t> WalletBackend::getSpendKeys(const std::string &address) const
 {
     const bool allowIntegratedAddresses = false;
 
@@ -1163,8 +1191,9 @@ std::vector<WalletTypes::Transaction>
         transactions.begin(),
         transactions.end(),
         std::back_inserter(result),
-        [&startHeight, &endHeight](const auto tx)
-        { return tx.blockHeight >= startHeight && tx.blockHeight < endHeight; });
+        [&startHeight, &endHeight](const auto tx) {
+            return tx.blockHeight >= startHeight && tx.blockHeight < endHeight;
+        });
 
     return result;
 }
@@ -1181,17 +1210,15 @@ std::tuple<std::string, uint16_t, bool> WalletBackend::getNodeAddress() const
 
 void WalletBackend::swapNode(std::string daemonHost, uint16_t daemonPort, bool daemonSSL)
 {
-    m_syncRAIIWrapper->pauseSynchronizerToRunFunction(
-        [&, this]()
-        {
-            /* Swap and init the node */
-            m_daemon->swapNode(daemonHost, daemonPort, daemonSSL);
+    m_syncRAIIWrapper->pauseSynchronizerToRunFunction([&, this]() {
+        /* Swap and init the node */
+        m_daemon->swapNode(daemonHost, daemonPort, daemonSSL);
 
-            /* Give the synchronizer the new daemon */
-            m_walletSynchronizer->swapNode(m_daemon);
+        /* Give the synchronizer the new daemon */
+        m_walletSynchronizer->swapNode(m_daemon);
 
-            return 0;
-        });
+        return 0;
+    });
 }
 
 bool WalletBackend::daemonOnline() const
@@ -1227,11 +1254,6 @@ std::vector<std::tuple<std::string, uint64_t, uint64_t>> WalletBackend::getBalan
 }
 
 std::string WalletBackend::toJSON() const
-{
-    return m_syncRAIIWrapper->pauseSynchronizerToRunFunction([this]() { return unsafeToJSON(); });
-}
-
-std::string WalletBackend::unsafeToJSON() const
 {
     StringBuffer sb;
     Writer<StringBuffer> writer(sb);

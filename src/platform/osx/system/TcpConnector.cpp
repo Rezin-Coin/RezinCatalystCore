@@ -120,8 +120,7 @@ namespace System
                             else
                             {
                                 context = &connectorContext;
-                                dispatcher->getCurrentContext()->interruptProcedure = [&]
-                                {
+                                dispatcher->getCurrentContext()->interruptProcedure = [&] {
                                     assert(dispatcher != nullptr);
                                     assert(context != nullptr);
                                     ConnectorContext *connectorContext = static_cast<ConnectorContext *>(context);

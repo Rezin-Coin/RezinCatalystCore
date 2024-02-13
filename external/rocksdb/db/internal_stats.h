@@ -17,7 +17,7 @@
 
 class ColumnFamilyData;
 
-namespace ROCKSDB_NAMESPACE {
+namespace rocksdb {
 
 class DBImpl;
 class MemTableList;
@@ -109,15 +109,15 @@ class InternalStats {
   };
 
   enum InternalDBStatsType {
-    kIntStatsWalFileBytes,
-    kIntStatsWalFileSynced,
-    kIntStatsBytesWritten,
-    kIntStatsNumKeysWritten,
-    kIntStatsWriteDoneByOther,
-    kIntStatsWriteDoneBySelf,
-    kIntStatsWriteWithWal,
-    kIntStatsWriteStallMicros,
-    kIntStatsNumMax,
+    WAL_FILE_BYTES,
+    WAL_FILE_SYNCED,
+    BYTES_WRITTEN,
+    NUMBER_KEYS_WRITTEN,
+    WRITE_DONE_BY_OTHER,
+    WRITE_DONE_BY_SELF,
+    WRITE_WITH_WAL,
+    WRITE_STALL_MICROS,
+    INTERNAL_DB_STATS_ENUM_MAX,
   };
 
   InternalStats(int num_levels, Env* env, ColumnFamilyData* cfd)
@@ -322,7 +322,7 @@ class InternalStats {
   };
 
   void Clear() {
-    for (int i = 0; i < kIntStatsNumMax; i++) {
+    for (int i = 0; i < INTERNAL_DB_STATS_ENUM_MAX; i++) {
       db_stats_[i].store(0);
     }
     for (int i = 0; i < INTERNAL_CF_STATS_ENUM_MAX; i++) {
@@ -416,7 +416,7 @@ class InternalStats {
   bool HandleBlockCacheStat(Cache** block_cache);
 
   // Per-DB stats
-  std::atomic<uint64_t> db_stats_[kIntStatsNumMax];
+  std::atomic<uint64_t> db_stats_[INTERNAL_DB_STATS_ENUM_MAX];
   // Per-ColumnFamily stats
   uint64_t cf_stats_value_[INTERNAL_CF_STATS_ENUM_MAX];
   uint64_t cf_stats_count_[INTERNAL_CF_STATS_ENUM_MAX];
@@ -553,8 +553,6 @@ class InternalStats {
   bool HandleEstimateNumKeys(uint64_t* value, DBImpl* db, Version* version);
   bool HandleNumSnapshots(uint64_t* value, DBImpl* db, Version* version);
   bool HandleOldestSnapshotTime(uint64_t* value, DBImpl* db, Version* version);
-  bool HandleOldestSnapshotSequence(uint64_t* value, DBImpl* db,
-                                    Version* version);
   bool HandleNumLiveVersions(uint64_t* value, DBImpl* db, Version* version);
   bool HandleCurrentSuperVersionNumber(uint64_t* value, DBImpl* db,
                                        Version* version);
@@ -617,15 +615,15 @@ class InternalStats {
   };
 
   enum InternalDBStatsType {
-    kIntStatsWalFileBytes,
-    kIntStatsWalFileSynced,
-    kIntStatsBytesWritten,
-    kIntStatsNumKeysWritten,
-    kIntStatsWriteDoneByOther,
-    kIntStatsWriteDoneBySelf,
-    kIntStatsWriteWithWal,
-    kIntStatsWriteStallMicros,
-    kIntStatsNumMax,
+    WAL_FILE_BYTES,
+    WAL_FILE_SYNCED,
+    BYTES_WRITTEN,
+    NUMBER_KEYS_WRITTEN,
+    WRITE_DONE_BY_OTHER,
+    WRITE_DONE_BY_SELF,
+    WRITE_WITH_WAL,
+    WRITE_STALL_MICROS,
+    INTERNAL_DB_STATS_ENUM_MAX,
   };
 
   InternalStats(int /*num_levels*/, Env* /*env*/, ColumnFamilyData* /*cfd*/) {}
@@ -694,4 +692,4 @@ class InternalStats {
 };
 #endif  // !ROCKSDB_LITE
 
-}  // namespace ROCKSDB_NAMESPACE
+}  // namespace rocksdb

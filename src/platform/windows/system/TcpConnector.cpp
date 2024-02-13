@@ -159,8 +159,7 @@ namespace System
                                 context2.connection = connection;
                                 context2.interrupted = false;
                                 context = &context2;
-                                dispatcher->getCurrentContext()->interruptProcedure = [&]()
-                                {
+                                dispatcher->getCurrentContext()->interruptProcedure = [&]() {
                                     assert(dispatcher != nullptr);
                                     assert(context != nullptr);
                                     TcpConnectorContext *context2 = static_cast<TcpConnectorContext *>(context);

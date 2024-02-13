@@ -1,15 +1,15 @@
 // Copyright (c) 2012-2017, The CryptoNote developers, The Bytecoin developers
-// Copyright (c) 2018-2020, The TurtleCoin Developers
+// Copyright (c) 2018-2019, The TurtleCoin Developers
 //
 // Please see the included LICENSE file for more information.
 
 #pragma once
 
+#include "json.hpp"
 #include "rapidjson/document.h"
 #include "rapidjson/stringbuffer.h"
 #include "rapidjson/writer.h"
 
-#include <JsonHelper.h>
 #include <algorithm>
 #include <common/StringTools.h>
 #include <cstdint>
@@ -17,140 +17,6 @@
 
 namespace Crypto
 {
-    struct EllipticCurvePoint
-    {
-        EllipticCurvePoint() {}
-
-        EllipticCurvePoint(std::initializer_list<uint8_t> input)
-        {
-            std::copy(input.begin(), input.end(), std::begin(data));
-        }
-
-        EllipticCurvePoint(const uint8_t input[32])
-        {
-            std::copy(input, input + 32, std::begin(data));
-        }
-
-        EllipticCurvePoint(const std::string &s)
-        {
-            fromString(s);
-        }
-
-        bool operator==(const EllipticCurvePoint &other) const
-        {
-            return std::equal(std::begin(data), std::end(data), std::begin(other.data));
-        }
-
-        bool operator!=(const EllipticCurvePoint &other) const
-        {
-            return !(*this == other);
-        }
-
-        /* Converts the class to a json object */
-        void toJSON(rapidjson::Writer<rapidjson::StringBuffer> &writer) const
-        {
-            writer.String(Common::podToHex(data));
-        }
-
-        void fromJSON(const JSONValue &j)
-        {
-            if (j.IsString())
-            {
-                fromString(j.GetString());
-            }
-        }
-
-        void fromJSON(const JSONValue &j, const std::string &key)
-        {
-            auto val = j.FindMember(key);
-
-            if (val == j.MemberEnd())
-            {
-                throw std::invalid_argument("Missing JSON parameter: '" + key + "'");
-            }
-
-            fromJSON(val->value);
-        }
-
-        /* Initializes the class from a json string */
-        void fromString(const std::string &s)
-        {
-            if (!Common::podFromHex(s, data))
-            {
-                throw std::invalid_argument("Error parsing JSON EllipticCurvePoint, wrong length or not hex");
-            }
-        }
-
-        uint8_t data[32];
-    };
-
-    struct EllipticCurveScalar
-    {
-        EllipticCurveScalar() {}
-
-        EllipticCurveScalar(std::initializer_list<uint8_t> input)
-        {
-            std::copy(input.begin(), input.end(), std::begin(data));
-        }
-
-        EllipticCurveScalar(const uint8_t input[32])
-        {
-            std::copy(input, input + 32, std::begin(data));
-        }
-
-        EllipticCurveScalar(const std::string &s)
-        {
-            fromString(s);
-        }
-
-        bool operator==(const EllipticCurveScalar &other) const
-        {
-            return std::equal(std::begin(data), std::end(data), std::begin(other.data));
-        }
-
-        bool operator!=(const EllipticCurveScalar &other) const
-        {
-            return !(*this == other);
-        }
-
-        /* Converts the class to a json object */
-        void toJSON(rapidjson::Writer<rapidjson::StringBuffer> &writer) const
-        {
-            writer.String(Common::podToHex(data));
-        }
-
-        void fromJSON(const JSONValue &j)
-        {
-            if (j.IsString())
-            {
-                fromString(j.GetString());
-            }
-        }
-
-        void fromJSON(const JSONValue &j, const std::string &key)
-        {
-            auto val = j.FindMember(key);
-
-            if (val == j.MemberEnd())
-            {
-                throw std::invalid_argument("Missing JSON parameter: '" + key + "'");
-            }
-
-            fromJSON(val->value);
-        }
-
-        /* Initializes the class from a json string */
-        void fromString(const std::string &s)
-        {
-            if (!Common::podFromHex(s, data))
-            {
-                throw std::invalid_argument("Error parsing JSON EllipticCurveScalar, wrong length or not hex");
-            }
-        }
-
-        uint8_t data[32];
-    };
-
     struct Hash
     {
         /* Can't have constructors here, because it violates std::is_pod<>
@@ -171,26 +37,6 @@ namespace Crypto
         void toJSON(rapidjson::Writer<rapidjson::StringBuffer> &writer) const
         {
             writer.String(Common::podToHex(data));
-        }
-
-        void fromJSON(const JSONValue &j)
-        {
-            if (j.IsString())
-            {
-                fromString(j.GetString());
-            }
-        }
-
-        void fromJSON(const JSONValue &j, const std::string &key)
-        {
-            auto val = j.FindMember(key);
-
-            if (val == j.MemberEnd())
-            {
-                throw std::invalid_argument("Missing JSON parameter: '" + key + "'");
-            }
-
-            fromJSON(val->value);
         }
 
         /* Initializes the class from a json string */
@@ -217,11 +63,6 @@ namespace Crypto
             std::copy(input, input + 32, std::begin(data));
         }
 
-        PublicKey(const std::string &s)
-        {
-            fromString(s);
-        }
-
         bool operator==(const PublicKey &other) const
         {
             return std::equal(std::begin(data), std::end(data), std::begin(other.data));
@@ -236,26 +77,6 @@ namespace Crypto
         void toJSON(rapidjson::Writer<rapidjson::StringBuffer> &writer) const
         {
             writer.String(Common::podToHex(data));
-        }
-
-        void fromJSON(const JSONValue &j)
-        {
-            if (j.IsString())
-            {
-                fromString(j.GetString());
-            }
-        }
-
-        void fromJSON(const JSONValue &j, const std::string &key)
-        {
-            auto val = j.FindMember(key);
-
-            if (val == j.MemberEnd())
-            {
-                throw std::invalid_argument("Missing JSON parameter: '" + key + "'");
-            }
-
-            fromJSON(val->value);
         }
 
         /* Initializes the class from a json string */
@@ -284,11 +105,6 @@ namespace Crypto
             std::copy(input, input + 32, std::begin(data));
         }
 
-        SecretKey(const std::string &s)
-        {
-            fromString(s);
-        }
-
         bool operator==(const SecretKey &other) const
         {
             return std::equal(std::begin(data), std::end(data), std::begin(other.data));
@@ -303,26 +119,6 @@ namespace Crypto
         void toJSON(rapidjson::Writer<rapidjson::StringBuffer> &writer) const
         {
             writer.String(Common::podToHex(data));
-        }
-
-        void fromJSON(const JSONValue &j)
-        {
-            if (j.IsString())
-            {
-                fromString(j.GetString());
-            }
-        }
-
-        void fromJSON(const JSONValue &j, const std::string &key)
-        {
-            auto val = j.FindMember(key);
-
-            if (val == j.MemberEnd())
-            {
-                throw std::invalid_argument("Missing JSON parameter: '" + key + "'");
-            }
-
-            fromJSON(val->value);
         }
 
         /* Initializes the class from a json string */
@@ -351,11 +147,6 @@ namespace Crypto
             std::copy(input, input + 32, std::begin(data));
         }
 
-        KeyDerivation(const std::string &s)
-        {
-            fromString(s);
-        }
-
         bool operator==(const KeyDerivation &other) const
         {
             return std::equal(std::begin(data), std::end(data), std::begin(other.data));
@@ -370,26 +161,6 @@ namespace Crypto
         void toJSON(rapidjson::Writer<rapidjson::StringBuffer> &writer) const
         {
             writer.String(Common::podToHex(data));
-        }
-
-        void fromJSON(const JSONValue &j)
-        {
-            if (j.IsString())
-            {
-                fromString(j.GetString());
-            }
-        }
-
-        void fromJSON(const JSONValue &j, const std::string &key)
-        {
-            auto val = j.FindMember(key);
-
-            if (val == j.MemberEnd())
-            {
-                throw std::invalid_argument("Missing JSON parameter: '" + key + "'");
-            }
-
-            fromJSON(val->value);
         }
 
         /* Initializes the class from a json string */
@@ -418,11 +189,6 @@ namespace Crypto
             std::copy(input, input + 32, std::begin(data));
         }
 
-        KeyImage(const std::string &s)
-        {
-            fromString(s);
-        }
-
         bool operator==(const KeyImage &other) const
         {
             return std::equal(std::begin(data), std::end(data), std::begin(other.data));
@@ -437,26 +203,6 @@ namespace Crypto
         void toJSON(rapidjson::Writer<rapidjson::StringBuffer> &writer) const
         {
             writer.String(Common::podToHex(data));
-        }
-
-        void fromJSON(const JSONValue &j)
-        {
-            if (j.IsString())
-            {
-                fromString(j.GetString());
-            }
-        }
-
-        void fromJSON(const JSONValue &j, const std::string &key)
-        {
-            auto val = j.FindMember(key);
-
-            if (val == j.MemberEnd())
-            {
-                throw std::invalid_argument("Missing JSON parameter: '" + key + "'");
-            }
-
-            fromJSON(val->value);
         }
 
         /* Initializes the class from a json string */
@@ -485,11 +231,6 @@ namespace Crypto
             std::copy(input, input + 64, std::begin(data));
         }
 
-        Signature(const std::string &s)
-        {
-            fromString(s);
-        }
-
         bool operator==(const Signature &other) const
         {
             return std::equal(std::begin(data), std::end(data), std::begin(other.data));
@@ -500,55 +241,10 @@ namespace Crypto
             return !(*this == other);
         }
 
-        /* Converts the class to a json object */
-        void toJSON(rapidjson::Writer<rapidjson::StringBuffer> &writer) const
-        {
-            writer.String(Common::podToHex(data));
-        }
-
-        void fromJSON(const JSONValue &j)
-        {
-            if (j.IsString())
-            {
-                fromString(j.GetString());
-            }
-        }
-
-        void fromJSON(const JSONValue &j, const std::string &key)
-        {
-            auto val = j.FindMember(key);
-
-            if (val == j.MemberEnd())
-            {
-                throw std::invalid_argument("Missing JSON parameter: '" + key + "'");
-            }
-
-            fromJSON(val->value);
-        }
-
-        /* Initializes the class from a json string */
-        void fromString(const std::string &s)
-        {
-            if (!Common::podFromHex(s, data))
-            {
-                throw std::invalid_argument("Error parsing JSON keyimage, wrong length or not hex");
-            }
-        }
-
-        uint8_t data[64] = {};
+        uint8_t data[64];
     };
 
     /* For boost hash_value */
-    inline size_t hash_value(const EllipticCurvePoint &ep)
-    {
-        return reinterpret_cast<const size_t &>(ep);
-    }
-
-    inline size_t hash_value(const EllipticCurveScalar &es)
-    {
-        return reinterpret_cast<const size_t &>(es);
-    }
-
     inline size_t hash_value(const Hash &hash)
     {
         return reinterpret_cast<const size_t &>(hash);
@@ -573,27 +269,86 @@ namespace Crypto
     {
         return reinterpret_cast<const size_t &>(keyImage);
     }
+
+    inline void to_json(nlohmann::json &j, const Hash &h)
+    {
+        j = Common::podToHex(h);
+    }
+
+    inline void from_json(const nlohmann::json &j, Hash &h)
+    {
+        if (!Common::podFromHex(j.get<std::string>(), h.data))
+        {
+            const auto err = nlohmann::detail::parse_error::create(100, 0, "Wrong length or not hex!");
+
+            throw nlohmann::json::parse_error(err);
+        }
+    }
+
+    inline void to_json(nlohmann::json &j, const PublicKey &p)
+    {
+        j = Common::podToHex(p);
+    }
+
+    inline void from_json(const nlohmann::json &j, PublicKey &p)
+    {
+        if (!Common::podFromHex(j.get<std::string>(), p.data))
+        {
+            const auto err = nlohmann::detail::parse_error::create(100, 0, "Wrong length or not hex!");
+
+            throw nlohmann::json::parse_error(err);
+        }
+    }
+
+    inline void to_json(nlohmann::json &j, const SecretKey &s)
+    {
+        j = Common::podToHex(s);
+    }
+
+    inline void from_json(const nlohmann::json &j, SecretKey &s)
+    {
+        if (!Common::podFromHex(j.get<std::string>(), s.data))
+        {
+            const auto err = nlohmann::detail::parse_error::create(100, 0, "Wrong length or not hex!");
+
+            throw nlohmann::json::parse_error(err);
+        }
+    }
+
+    inline void to_json(nlohmann::json &j, const KeyDerivation &k)
+    {
+        j = Common::podToHex(k);
+    }
+
+    inline void from_json(const nlohmann::json &j, KeyDerivation &k)
+    {
+        if (!Common::podFromHex(j.get<std::string>(), k.data))
+        {
+            const auto err = nlohmann::detail::parse_error::create(100, 0, "Wrong length or not hex!");
+
+            throw nlohmann::json::parse_error(err);
+        }
+    }
+
+    inline void to_json(nlohmann::json &j, const KeyImage &k)
+    {
+        j = Common::podToHex(k);
+    }
+
+    inline void from_json(const nlohmann::json &j, KeyImage &k)
+    {
+        if (!Common::podFromHex(j.get<std::string>(), k.data))
+        {
+            const auto err = nlohmann::detail::parse_error::create(100, 0, "Wrong length or not hex!");
+
+            throw nlohmann::json::parse_error(err);
+        }
+    }
 } // namespace Crypto
 
 namespace std
 {
     /* For using in std::unordered_* containers */
-    template<> struct hash<Crypto::EllipticCurvePoint>
-    {
-        size_t operator()(const Crypto::EllipticCurvePoint &ep) const
-        {
-            return reinterpret_cast<const size_t &>(ep);
-        }
-    };
-
-    template<> struct hash<Crypto::EllipticCurveScalar>
-    {
-        size_t operator()(const Crypto::EllipticCurveScalar &es) const
-        {
-            return reinterpret_cast<const size_t &>(es);
-        }
-    };
-
     template<> struct hash<Crypto::Hash>
     {
         size_t operator()(const Crypto::Hash &hash) const
@@ -643,18 +398,6 @@ namespace std
     };
 
     /* Overloading the << operator */
-    inline ostream &operator<<(ostream &os, const Crypto::EllipticCurvePoint &ep)
-    {
-        os << Common::podToHex(ep);
-        return os;
-    }
-
-    inline ostream &operator<<(ostream &os, const Crypto::EllipticCurveScalar &es)
-    {
-        os << Common::podToHex(es);
-        return os;
-    }
-
     inline ostream &operator<<(ostream &os, const Crypto::Hash &hash)
     {
         os << Common::podToHex(hash);

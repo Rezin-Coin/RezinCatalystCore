@@ -7,7 +7,7 @@
 #include <sstream>
 #include "monitoring/perf_context_imp.h"
 
-namespace ROCKSDB_NAMESPACE {
+namespace rocksdb {
 
 #if defined(NPERF_CONTEXT) || !defined(ROCKSDB_SUPPORT_THREAD_LOCAL)
 PerfContext perf_context;
@@ -38,9 +38,7 @@ PerfContext::~PerfContext() {
 }
 
 PerfContext::PerfContext(const PerfContext& other) {
-#ifdef NPERF_CONTEXT
-  (void)other;
-#else
+#ifndef NPERF_CONTEXT
   user_key_comparison_count = other.user_key_comparison_count;
   block_cache_hit_count = other.block_cache_hit_count;
   block_read_count = other.block_read_count;
@@ -135,9 +133,7 @@ PerfContext::PerfContext(const PerfContext& other) {
 }
 
 PerfContext::PerfContext(PerfContext&& other) noexcept {
-#ifdef NPERF_CONTEXT
-  (void)other;
-#else
+#ifndef NPERF_CONTEXT
   user_key_comparison_count = other.user_key_comparison_count;
   block_cache_hit_count = other.block_cache_hit_count;
   block_read_count = other.block_read_count;
@@ -234,9 +230,7 @@ PerfContext::PerfContext(PerfContext&& other) noexcept {
 // TODO(Zhongyi): reduce code duplication between copy constructor and
 // assignment operator
 PerfContext& PerfContext::operator=(const PerfContext& other) {
-#ifdef NPERF_CONTEXT
-  (void)other;
-#else
+#ifndef NPERF_CONTEXT
   user_key_comparison_count = other.user_key_comparison_count;
   block_cache_hit_count = other.block_cache_hit_count;
   block_read_count = other.block_read_count;
@@ -449,7 +443,6 @@ void PerfContextByLevel::Reset() {
 
 std::string PerfContext::ToString(bool exclude_zero_counters) const {
 #ifdef NPERF_CONTEXT
-  (void)exclude_zero_counters;
   return "";
 #else
   std::ostringstream ss;
@@ -536,10 +529,7 @@ std::string PerfContext::ToString(bool exclude_zero_counters) const {
   PERF_CONTEXT_BY_LEVEL_OUTPUT_ONE_COUNTER(bloom_filter_full_true_positive);
   PERF_CONTEXT_BY_LEVEL_OUTPUT_ONE_COUNTER(block_cache_hit_count);
   PERF_CONTEXT_BY_LEVEL_OUTPUT_ONE_COUNTER(block_cache_miss_count);
-
-  std::string str = ss.str();
-  str.erase(str.find_last_not_of(", ") + 1);
-  return str;
+  return ss.str();
 #endif
 }
 
@@ -563,4 +553,4 @@ void PerfContext::ClearPerLevelPerfContext(){
   per_level_perf_context_enabled = false;
 }
 
-}  // namespace ROCKSDB_NAMESPACE
+}

@@ -5,8 +5,6 @@
 
 package org.rocksdb;
 
-import java.nio.ByteBuffer;
-
 /**
  * Base class implementation for Rocks Iterators
  * in the Java API
@@ -66,20 +64,6 @@ public abstract class AbstractRocksIterator<P extends RocksObject>
    seekForPrev0(nativeHandle_, target, target.length);
  }
 
- @Override
- public void seek(ByteBuffer target) {
-   assert (isOwningHandle() && target.isDirect());
-   seekDirect0(nativeHandle_, target, target.position(), target.remaining());
-   target.position(target.limit());
- }
-
- @Override
- public void seekForPrev(ByteBuffer target) {
-   assert (isOwningHandle() && target.isDirect());
-   seekForPrevDirect0(nativeHandle_, target, target.position(), target.remaining());
-   target.position(target.limit());
- }
-
   @Override
   public void next() {
     assert (isOwningHandle());
@@ -90,12 +74,6 @@ public abstract class AbstractRocksIterator<P extends RocksObject>
   public void prev() {
     assert (isOwningHandle());
     prev0(nativeHandle_);
-  }
-
-  @Override
-  public void refresh() throws RocksDBException {
-    assert (isOwningHandle());
-    refresh0(nativeHandle_);
   }
 
   @Override
@@ -124,10 +102,7 @@ public abstract class AbstractRocksIterator<P extends RocksObject>
   abstract void seekToLast0(long handle);
   abstract void next0(long handle);
   abstract void prev0(long handle);
-  abstract void refresh0(long handle) throws RocksDBException;
   abstract void seek0(long handle, byte[] target, int targetLen);
   abstract void seekForPrev0(long handle, byte[] target, int targetLen);
-  abstract void seekDirect0(long handle, ByteBuffer target, int targetOffset, int targetLen);
-  abstract void seekForPrevDirect0(long handle, ByteBuffer target, int targetOffset, int targetLen);
   abstract void status0(long handle) throws RocksDBException;
 }

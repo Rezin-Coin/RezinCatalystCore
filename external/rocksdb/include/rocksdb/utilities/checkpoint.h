@@ -12,7 +12,7 @@
 #include <vector>
 #include "rocksdb/status.h"
 
-namespace ROCKSDB_NAMESPACE {
+namespace rocksdb {
 
 class DB;
 class ColumnFamilyHandle;
@@ -37,12 +37,8 @@ class Checkpoint {
   // away from the default, the checkpoint may not contain up-to-date data
   // if WAL writing is not always enabled.
   // Flush will always trigger if it is 2PC.
-  // sequence_number_ptr: if it is not nullptr, the value it points to will be
-  // set to the DB's sequence number. The default value of this parameter is
-  // nullptr.
   virtual Status CreateCheckpoint(const std::string& checkpoint_dir,
-                                  uint64_t log_size_for_flush = 0,
-                                  uint64_t* sequence_number_ptr = nullptr);
+                                  uint64_t log_size_for_flush = 0);
 
   // Exports all live SST files of a specified Column Family onto export_dir,
   // returning SST files information in metadata.
@@ -57,5 +53,5 @@ class Checkpoint {
   virtual ~Checkpoint() {}
 };
 
-}  // namespace ROCKSDB_NAMESPACE
+}  // namespace rocksdb
 #endif  // !ROCKSDB_LITE

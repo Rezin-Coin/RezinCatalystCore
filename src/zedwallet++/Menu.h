@@ -85,11 +85,8 @@ std::string parseCommand(
         else
         {
             /* Find the command by command name */
-            auto it = std::find_if(
-                availableCommands.begin(),
-                availableCommands.end(),
-                [&selection](const auto command)
-                {
+            auto it =
+                std::find_if(availableCommands.begin(), availableCommands.end(), [&selection](const auto command) {
                     std::string cmd = command.commandName;
 
                     std::transform(cmd.begin(), cmd.end(), cmd.begin(), ::tolower);

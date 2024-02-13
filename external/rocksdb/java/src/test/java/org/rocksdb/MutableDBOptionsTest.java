@@ -56,22 +56,21 @@ public class MutableDBOptionsTest {
   }
 
   @Test
-  public void mutableDBOptions_toString() {
+  public void mutableColumnFamilyOptions_toString() {
     final String str = MutableDBOptions
         .builder()
         .setMaxOpenFiles(99)
         .setDelayedWriteRate(789)
         .setAvoidFlushDuringShutdown(true)
-        .setStrictBytesPerSync(true)
         .build()
         .toString();
 
     assertThat(str).isEqualTo("max_open_files=99;delayed_write_rate=789;"
-        + "avoid_flush_during_shutdown=true;strict_bytes_per_sync=true");
+        + "avoid_flush_during_shutdown=true");
   }
 
   @Test
-  public void mutableDBOptions_parse() {
+  public void mutableColumnFamilyOptions_parse() {
     final String str = "max_open_files=99;delayed_write_rate=789;"
         + "avoid_flush_during_shutdown=true";
 

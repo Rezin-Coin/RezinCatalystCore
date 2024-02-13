@@ -1,7 +1,7 @@
 // Copyright (c) 2012-2017, The CryptoNote developers, The Bytecoin developers
 // Copyright (c) 2014-2018, The Monero Project
 // Copyright (c) 2016-2018, The Karbowanec developers
-// Copyright (c) 2018-2020, The TurtleCoin Developers
+// Copyright (c) 2018-2019, The TurtleCoin Developers
 //
 // Please see the included LICENSE file for more information.
 
@@ -18,6 +18,16 @@
 
 namespace Crypto
 {
+    struct EllipticCurvePoint
+    {
+        uint8_t data[32];
+    };
+
+    struct EllipticCurveScalar
+    {
+        uint8_t data[32];
+    };
+
     class crypto_ops
     {
         crypto_ops();
@@ -27,14 +37,6 @@ namespace Crypto
         void operator=(const crypto_ops &);
 
         ~crypto_ops();
-
-        static void scReduce32(EllipticCurveScalar &);
-
-        friend void scReduce32(EllipticCurveScalar &);
-
-        static void hashToScalar(const void *, std::size_t, EllipticCurveScalar &res);
-
-        friend void hashToScalar(const void *, std::size_t, EllipticCurveScalar &res);
 
         static void generate_keys(PublicKey &, SecretKey &);
 
@@ -50,7 +52,11 @@ namespace Crypto
             const SecretKey &recovery_key = SecretKey(),
             bool recover = false);
 
-        friend SecretKey generate_m_keys(PublicKey &pub, SecretKey &sec, const SecretKey &recovery_key, bool recover);
+        friend SecretKey generate_m_keys(
+            PublicKey &pub,
+            SecretKey &sec,
+            const SecretKey &recovery_key,
+            bool recover);
 
         static bool check_key(const PublicKey &);
 
@@ -64,14 +70,6 @@ namespace Crypto
 
         friend bool generate_key_derivation(const PublicKey &, const SecretKey &, KeyDerivation &);
 
-        static void derivation_to_scalar(const KeyDerivation &, size_t, EllipticCurveScalar &);
-
-        friend void derivation_to_scalar(const KeyDerivation &, size_t, EllipticCurveScalar &);
-
-        static void derivation_to_scalar(const KeyDerivation &, size_t, const uint8_t *, size_t, EllipticCurveScalar &);
-
-        friend void derivation_to_scalar(const KeyDerivation &, size_t, const uint8_t *, size_t, EllipticCurveScalar &);
-
         static bool derive_public_key(const KeyDerivation &, size_t, const PublicKey &, PublicKey &);
 
         friend bool derive_public_key(const KeyDerivation &, size_t, const PublicKey &, PublicKey &);
@@ -81,10 +79,6 @@ namespace Crypto
 
         static bool
             derive_public_key(const KeyDerivation &, size_t, const PublicKey &, const uint8_t *, size_t, PublicKey &);
-
-        static bool derive_public_key(const EllipticCurveScalar &, const PublicKey &, PublicKey &);
-
-        friend bool derive_public_key(const EllipticCurveScalar &, const PublicKey &, PublicKey &);
 
         // hack for pg
         static bool underive_public_key_and_get_scalar(
@@ -111,10 +105,6 @@ namespace Crypto
 
         friend void
             derive_secret_key(const KeyDerivation &, size_t, const SecretKey &, const uint8_t *, size_t, SecretKey &);
-
-        static void derive_secret_key(const EllipticCurveScalar &, const SecretKey &, SecretKey &);
-
-        friend void derive_secret_key(const EllipticCurveScalar &, const SecretKey &, SecretKey &);
 
         static bool underive_public_key(const KeyDerivation &, size_t, const PublicKey &, PublicKey &);
 
@@ -157,31 +147,12 @@ namespace Crypto
             SecretKey &subWalletPrivateKey);
 
       public:
-        static std::tuple<bool, std::vector<Signature>> prepareRingSignatures(
-            const Hash prefixHash,
-            const KeyImage keyImage,
-            const std::vector<PublicKey> publicKeys,
-            const uint64_t realOutput,
-            const EllipticCurveScalar k);
-
-        static std::tuple<bool, std::vector<Signature>, EllipticCurveScalar> prepareRingSignatures(
-            const Hash prefixHash,
-            const KeyImage keyImage,
-            const std::vector<PublicKey> publicKeys,
-            const uint64_t realOutput);
-
-        static std::tuple<bool, std::vector<Signature>> completeRingSignatures(
-            const SecretKey transactionSecretKey,
-            const uint64_t realOutput,
-            const EllipticCurveScalar &k,
-            const std::vector<Signature> &signatures);
-
         static std::tuple<bool, std::vector<Signature>> generateRingSignatures(
             const Hash prefixHash,
             const KeyImage keyImage,
             const std::vector<PublicKey> publicKeys,
             const Crypto::SecretKey transactionSecretKey,
-            const uint64_t realOutput);
+            uint64_t realOutput);
 
         static bool checkRingSignature(
             const Hash &prefix_hash,
@@ -221,14 +192,19 @@ namespace Crypto
         crypto_ops::generate_deterministic_keys(pub, sec, second);
     }
 
-    inline std::tuple<SecretKey, PublicKey>
-        generate_deterministic_subwallet_keys(const SecretKey basePrivate, const uint64_t subwalletIndex)
+    inline std::tuple<SecretKey, PublicKey> generate_deterministic_subwallet_keys(
+        const SecretKey basePrivate,
+        const uint64_t subwalletIndex)
     {
         SecretKey privateKey;
 
         PublicKey publicKey;
 
-        crypto_ops::generate_deterministic_subwallet_keys(basePrivate, subwalletIndex, privateKey, publicKey);
+        crypto_ops::generate_deterministic_subwallet_keys(
+            basePrivate,
+            subwalletIndex,
+            privateKey,
+            publicKey);
 
         return {privateKey, publicKey};
     }
@@ -271,11 +247,6 @@ namespace Crypto
         return crypto_ops::generate_key_derivation(key1, key2, derivation);
     }
 
-    inline void derivation_to_scalar(const KeyDerivation &derivation, size_t output_index, EllipticCurveScalar &res)
-    {
-        crypto_ops::derivation_to_scalar(derivation, output_index, res);
-    }
-
     inline bool derive_public_key(
         const KeyDerivation &derivation,
         size_t output_index,
@@ -294,12 +265,6 @@ namespace Crypto
         PublicKey &derived_key)
     {
         return crypto_ops::derive_public_key(derivation, output_index, base, derived_key);
-    }
-
-    inline bool
-        derive_public_key(const EllipticCurveScalar &derivationScalar, const PublicKey &base, PublicKey &derived_key)
-    {
-        return crypto_ops::derive_public_key(derivationScalar, base, derived_key);
     }
 
     inline bool underive_public_key_and_get_scalar(
@@ -331,12 +296,6 @@ namespace Crypto
         SecretKey &derived_key)
     {
         crypto_ops::derive_secret_key(derivation, output_index, base, derived_key);
-    }
-
-    inline void
-        derive_secret_key(const EllipticCurveScalar &derivationScalar, const SecretKey &base, SecretKey &derived_key)
-    {
-        crypto_ops::derive_secret_key(derivationScalar, base, derived_key);
     }
 
     /* Inverse function of derive_public_key. It can be used by the receiver to find which "spend" key was used to
@@ -395,15 +354,5 @@ namespace Crypto
     inline void hash_data_to_ec(const uint8_t *data, std::size_t len, PublicKey &key)
     {
         crypto_ops::hash_data_to_ec(data, len, key);
-    }
-
-    inline void scReduce32(EllipticCurveScalar &data)
-    {
-        crypto_ops::scReduce32(data);
-    }
-
-    inline void hashToScalar(const void *data, std::size_t len, EllipticCurveScalar &res)
-    {
-        crypto_ops::hashToScalar(data, len, res);
     }
 } // namespace Crypto

@@ -119,8 +119,7 @@ namespace System
         context.context = dispatcher->getCurrentContext();
         context.interrupted = false;
         readContext = &context;
-        dispatcher->getCurrentContext()->interruptProcedure = [&]()
-        {
+        dispatcher->getCurrentContext()->interruptProcedure = [&]() {
             assert(dispatcher != nullptr);
             assert(readContext != nullptr);
             TcpConnectionContext *context = static_cast<TcpConnectionContext *>(readContext);
@@ -205,8 +204,7 @@ namespace System
         context.context = dispatcher->getCurrentContext();
         context.interrupted = false;
         writeContext = &context;
-        dispatcher->getCurrentContext()->interruptProcedure = [&]()
-        {
+        dispatcher->getCurrentContext()->interruptProcedure = [&]() {
             assert(dispatcher != nullptr);
             assert(writeContext != nullptr);
             TcpConnectionContext *context = static_cast<TcpConnectionContext *>(writeContext);
@@ -273,7 +271,10 @@ namespace System
     }
 
     TcpConnection::TcpConnection(Dispatcher &dispatcher, size_t connection):
-        dispatcher(&dispatcher), connection(connection), readContext(nullptr), writeContext(nullptr)
+        dispatcher(&dispatcher),
+        connection(connection),
+        readContext(nullptr),
+        writeContext(nullptr)
     {
     }
 

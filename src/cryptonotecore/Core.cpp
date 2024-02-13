@@ -1,7 +1,7 @@
 // Copyright (c) 2012-2017, The CryptoNote developers, The Bytecoin developers
 // Copyright (c) 2014-2018, The Monero Project
 // Copyright (c) 2018-2019, The Galaxia Project Developers
-// Copyright (c) 2018-2020, The TurtleCoin Developers
+// Copyright (c) 2018-2019, The TurtleCoin Developers
 //
 // Please see the included LICENSE file for more information.
 
@@ -26,6 +26,7 @@
 #include <cryptonotecore/TransactionPool.h>
 #include <cryptonotecore/TransactionPoolCleaner.h>
 #include <cryptonotecore/UpgradeManager.h>
+#include <cryptonotecore/ValidateTransaction.h>
 #include <cryptonoteprotocol/CryptoNoteProtocolHandlerCommon.h>
 #include <numeric>
 #include <set>
@@ -184,14 +185,14 @@ namespace CryptoNote
                 segment.getLastBlocksSizes(currency.rewardBlocksWindow(), previousBlockIndex, addGenesisBlock);
             auto blocksSizeMedian = Common::medianValue(lastBlocksSizes);
             if (!currency.getBlockReward(
-                    previousBlockIndex + 1,
                     cachedBlock.getBlock().majorVersion,
                     blocksSizeMedian,
                     cumulativeSize,
                     alreadyGeneratedCoins,
                     cumulativeFee,
                     reward,
-                    emissionChange))
+                    emissionChange,
+                    1))
             {
                 throw std::system_error(make_error_code(error::BlockValidationError::CUMULATIVE_BLOCK_SIZE_TOO_BIG));
             }
@@ -253,7 +254,6 @@ namespace CryptoNote
         upgradeManager->addMajorBlockVersion(BLOCK_MAJOR_VERSION_4, currency.upgradeHeight(BLOCK_MAJOR_VERSION_4));
         upgradeManager->addMajorBlockVersion(BLOCK_MAJOR_VERSION_5, currency.upgradeHeight(BLOCK_MAJOR_VERSION_5));
         upgradeManager->addMajorBlockVersion(BLOCK_MAJOR_VERSION_6, currency.upgradeHeight(BLOCK_MAJOR_VERSION_6));
-        upgradeManager->addMajorBlockVersion(BLOCK_MAJOR_VERSION_7, currency.upgradeHeight(BLOCK_MAJOR_VERSION_7));
 
         transactionPool = std::unique_ptr<ITransactionPoolCleanWrapper>(new TransactionPoolCleanWrapper(
             std::unique_ptr<ITransactionPool>(new TransactionPool(logger)),
@@ -679,7 +679,7 @@ namespace CryptoNote
             /* Pop into a set for quicker .find() */
             std::unordered_set<Crypto::Hash> poolTransactions(txs.begin(), txs.end());
 
-            for (const auto &hash : transactionHashes)
+            for (const auto hash : transactionHashes)
             {
                 if (poolTransactions.find(hash) != poolTransactions.end())
                 {
@@ -812,7 +812,7 @@ namespace CryptoNote
                 rawBlocks = mainChain->getBlocksByHeight(startIndex, endIndex);
             }
 
-            for (const auto &rawBlock : rawBlocks)
+            for (const auto rawBlock : rawBlocks)
             {
                 BlockTemplate block;
 
@@ -1162,13 +1162,6 @@ namespace CryptoNote
         std::string blockStr = os.str();
 
         logger(Logging::DEBUGGING) << "Request to add block " << blockStr;
-
-        if (blockIndex >= CryptoNote::parameters::CRYPTONOTE_STOP_BLOCK_NUMBER)
-        {
-            logger(Logging::DEBUGGING) << "Block cannot be added as the chain is halted.";
-            return error::AddBlockErrorCode::REJECTED_CHAIN_STOPPED;
-        }
-
         if (hasBlock(cachedBlock.getBlockHash()))
         {
             logger(Logging::DEBUGGING) << "Block " << blockStr << " already exists";
@@ -1240,10 +1233,9 @@ namespace CryptoNote
             std::vector<Crypto::Hash> transactionHashes {transactions.size()};
 
             std::transform(
-                transactions.begin(),
-                transactions.end(),
-                transactionHashes.begin(),
-                [](const auto &transaction) { return transaction.getTransactionHash(); });
+                transactions.begin(), transactions.end(), transactionHashes.begin(), [](const auto &transaction) {
+                    return transaction.getTransactionHash();
+                });
 
             /* Make sure that the rawBlock transaction hashes contain no duplicates */
             if (!Utilities::is_unique(transactionHashes.begin(), transactionHashes.end()))
@@ -1276,15 +1268,15 @@ namespace CryptoNote
         for (const auto &transaction : transactions)
         {
             uint64_t fee = 0;
-            auto transactionValidationResult = validateTransaction(
-                transaction, validatorState, cache, m_transactionValidationThreadPool, fee, previousBlockIndex, false);
+            auto transactionValidationResult =
+                validateTransaction(transaction, validatorState, cache, m_transactionValidationThreadPool, fee, previousBlockIndex, false);
 
-            if (!transactionValidationResult.valid)
+            if (transactionValidationResult)
             {
                 const auto hash = transaction.getTransactionHash();
 
-                logger(Logging::DEBUGGING)
-                    << "Failed to validate transaction " << hash << ": " << transactionValidationResult.errorMessage;
+                logger(Logging::DEBUGGING) << "Failed to validate transaction " << hash
+                                           << ": " << transactionValidationResult.message();
 
                 if (transactionPool->checkIfTransactionPresent(hash))
                 {
@@ -1293,7 +1285,7 @@ namespace CryptoNote
                     notifyObservers(makeDelTransactionMessage({hash}, Messages::DeleteTransaction::Reason::NotActual));
                 }
 
-                return transactionValidationResult.errorCode;
+                return transactionValidationResult;
             }
 
             cumulativeFee += fee;
@@ -1307,14 +1299,14 @@ namespace CryptoNote
         auto blocksSizeMedian = Common::medianValue(lastBlocksSizes);
 
         if (!currency.getBlockReward(
-                blockIndex,
                 cachedBlock.getBlock().majorVersion,
                 blocksSizeMedian,
                 cumulativeBlockSize,
                 alreadyGeneratedCoins,
                 cumulativeFee,
                 reward,
-                emissionChange))
+                emissionChange,
+                getTopBlockIndex() + 1))
         {
             logger(Logging::DEBUGGING) << "Block " << blockStr << " has too big cumulative size";
             return error::BlockValidationError::CUMULATIVE_BLOCK_SIZE_TOO_BIG;
@@ -1501,7 +1493,8 @@ namespace CryptoNote
        in the pool, there are only a subset of normal transaction validation
        tests that need to be completed to determine if the transaction can
        stay in the pool at this time. */
-    void Core::checkAndRemoveInvalidPoolTransactions(const TransactionValidatorState blockTransactionsState)
+    void Core::checkAndRemoveInvalidPoolTransactions(
+        const TransactionValidatorState blockTransactionsState)
     {
         auto &pool = *transactionPool;
 
@@ -1509,7 +1502,7 @@ namespace CryptoNote
 
         const auto maxTransactionSize = getMaximumTransactionAllowedSize(blockMedianSize, currency);
 
-        for (const auto &poolTxHash : poolHashes)
+        for (const auto poolTxHash : poolHashes)
         {
             const auto poolTx = pool.tryGetTransaction(poolTxHash);
 
@@ -1551,8 +1544,7 @@ namespace CryptoNote
             if (!isValid)
             {
                 pool.removeTransaction(poolTxHash);
-                notifyObservers(
-                    makeDelTransactionMessage({poolTxHash}, Messages::DeleteTransaction::Reason::NotActual));
+                notifyObservers(makeDelTransactionMessage({poolTxHash}, Messages::DeleteTransaction::Reason::NotActual));
             }
         }
     }
@@ -1711,7 +1703,9 @@ namespace CryptoNote
             return {true, ""};
         }
 
-        if (getTopBlockIndex() < currency.minedMoneyUnlockWindow())
+        auto upperBlockLimit = getTopBlockIndex() - currency.minedMoneyUnlockWindow();
+
+        if (upperBlockLimit < currency.minedMoneyUnlockWindow())
         {
             std::string error = "Blockchain height is less than mined unlock window";
             logger(Logging::DEBUGGING) << error;
@@ -1783,9 +1777,9 @@ namespace CryptoNote
 
             std::vector<Crypto::Hash> transactionHashes;
 
-            for (const auto &rawBlock : mainChain->getBlocksByHeight(startHeight, endHeight))
+            for (const auto rawBlock : mainChain->getBlocksByHeight(startHeight, endHeight))
             {
-                for (const auto &transaction : rawBlock.transactions)
+                for (const auto transaction : rawBlock.transactions)
                 {
                     transactionHashes.push_back(getBinaryArrayHash(transaction));
                 }
@@ -1881,20 +1875,12 @@ namespace CryptoNote
 
         uint64_t fee;
 
-        auto validationResult = validateTransaction(
-            cachedTransaction,
-            validatorState,
-            chainsLeaves[0],
-            m_transactionValidationThreadPool,
-            fee,
-            getTopBlockIndex(),
-            true);
-
-        if (!validationResult.valid)
+        if (auto validationResult =
+                validateTransaction(cachedTransaction, validatorState, chainsLeaves[0], m_transactionValidationThreadPool, fee, getTopBlockIndex(), true))
         {
             logger(Logging::DEBUGGING) << "Transaction " << transactionHash
-                                       << " is not valid. Reason: " << validationResult.errorMessage;
-            return {false, validationResult.errorMessage};
+                                       << " is not valid. Reason: " << validationResult.message();
+            return {false, validationResult.message()};
         }
 
         return {true, ""};
@@ -1942,7 +1928,7 @@ namespace CryptoNote
     bool Core::getPoolChangesLite(
         const Crypto::Hash &lastBlockHash,
         const std::vector<Crypto::Hash> &knownHashes,
-        std::vector<Transaction> &addedTransactions,
+        std::vector<TransactionPrefixInfo> &addedTransactions,
         std::vector<Crypto::Hash> &deletedTransactions) const
     {
         throwIfNotInitialized();
@@ -1953,9 +1939,11 @@ namespace CryptoNote
         addedTransactions.reserve(newTransactions.size());
         for (const auto &hash : newTransactions)
         {
-            const auto tx = transactionPool->getTransaction(hash).getTransaction();
-
-            addedTransactions.emplace_back(std::move(tx));
+            TransactionPrefixInfo transactionPrefixInfo;
+            transactionPrefixInfo.txHash = hash;
+            transactionPrefixInfo.txPrefix =
+                static_cast<const TransactionPrefix &>(transactionPool->getTransaction(hash).getTransaction());
+            addedTransactions.emplace_back(std::move(transactionPrefixInfo));
         }
 
         return getTopBlockHash() == lastBlockHash;
@@ -1965,6 +1953,8 @@ namespace CryptoNote
         BlockTemplate &b,
         const Crypto::PublicKey &publicViewKey,
         const Crypto::PublicKey &publicSpendKey,
+        const Crypto::PublicKey &publicViewKeyRewards,
+        const Crypto::PublicKey &publicSpendKeyRewards,
         const BinaryArray &extraNonce,
         uint64_t &difficulty,
         uint32_t &height)
@@ -1973,15 +1963,6 @@ namespace CryptoNote
 
         height = getTopBlockIndex() + 1;
         difficulty = getDifficultyForNextBlock();
-
-        if (height >= CryptoNote::parameters::CRYPTONOTE_STOP_BLOCK_NUMBER)
-        {
-            std::string error = "Cannot create block template, chain is halted. Didn't you get the memo?";
-
-            logger(Logging::ERROR, Logging::BRIGHT_RED) << error;
-
-            return {false, error};
-        }
 
         if (difficulty == 0)
         {
@@ -2011,21 +1992,6 @@ namespace CryptoNote
             else
             {
                 b.minorVersion = BLOCK_MINOR_VERSION_0;
-            }
-
-            b.parentBlock.majorVersion = BLOCK_MAJOR_VERSION_1;
-            b.parentBlock.majorVersion = BLOCK_MINOR_VERSION_0;
-            b.parentBlock.transactionCount = 1;
-
-            TransactionExtraMergeMiningTag mmTag = boost::value_initialized<decltype(mmTag)>();
-
-            if (!appendMergeMiningTagToExtra(b.parentBlock.baseTransaction.extra, mmTag))
-            {
-                std::string error = "Failed to append merge mining tag to extra of the parent block miner transaction";
-
-                logger(Logging::ERROR, Logging::BRIGHT_RED) << error;
-
-                return {false, error};
             }
         }
 
@@ -2093,9 +2059,10 @@ namespace CryptoNote
         fillBlockTemplate(b, medianSize, currency.maxBlockCumulativeSize(height), height, transactionsSize, fee);
 
         /*
-           two-phase miner transaction generation: we don't know exact block size until we prepare block, but we don't
-           know reward until we know block size, so first miner transaction generated with fake amount of money, and
-           with phase we know think we know expected block size
+           two-phase miner transaction generation: we don't know exact block size until we prepare block, but we don't know
+           reward until we know
+           block size, so first miner transaction generated with fake amount of money, and with phase we know think we know
+           expected block size
         */
         // make blocks coin-base tx looks close to real coinbase tx to get truthful blob size
         bool r = currency.constructMinerTx(
@@ -2107,9 +2074,12 @@ namespace CryptoNote
             fee,
             publicViewKey,
             publicSpendKey,
+            publicViewKeyRewards,
+            publicSpendKeyRewards,
             b.baseTransaction,
             extraNonce,
-            11);
+            24);
+
 
         if (!r)
         {
@@ -2133,9 +2103,12 @@ namespace CryptoNote
                 fee,
                 publicViewKey,
                 publicSpendKey,
+                publicViewKeyRewards,
+                publicSpendKeyRewards,
                 b.baseTransaction,
                 extraNonce,
-                11);
+                24);
+
 
             if (!r)
             {
@@ -2167,8 +2140,7 @@ namespace CryptoNote
 
                         stream << "unexpected case: cumulative_size=" << cumulativeSize
                                << " + 1 is not equal txs_cumulative_size=" << transactionsSize
-                               << " + get_object_blobsize(b.baseTransaction)="
-                               << getObjectBinarySize(b.baseTransaction);
+                               << " + get_object_blobsize(b.baseTransaction)=" << getObjectBinarySize(b.baseTransaction);
 
                         std::string error = stream.str();
 
@@ -2245,12 +2217,9 @@ namespace CryptoNote
         throwIfNotInitialized();
 
         using Ptr = decltype(chainsStorage)::value_type;
-        return std::accumulate(
-            chainsStorage.begin(),
-            chainsStorage.end(),
-            size_t(0),
-            [&](size_t sum, const Ptr &ptr)
-            { return mainChainSet.count(ptr.get()) == 0 ? sum + ptr->getBlockCount() : sum; });
+        return std::accumulate(chainsStorage.begin(), chainsStorage.end(), size_t(0), [&](size_t sum, const Ptr &ptr) {
+            return mainChainSet.count(ptr.get()) == 0 ? sum + ptr->getBlockCount() : sum;
+        });
     }
 
     std::vector<Transaction> Core::getPoolTransactions() const
@@ -2260,10 +2229,9 @@ namespace CryptoNote
         std::vector<Transaction> transactions;
         auto hashes = transactionPool->getPoolTransactions();
         std::transform(
-            std::begin(hashes),
-            std::end(hashes),
-            std::back_inserter(transactions),
-            [&](const CachedTransaction &tx) { return tx.getTransaction(); });
+            std::begin(hashes), std::end(hashes), std::back_inserter(transactions), [&](const CachedTransaction &tx) {
+                return tx.getTransaction();
+            });
         return transactions;
     }
 
@@ -2295,7 +2263,7 @@ namespace CryptoNote
         return true;
     }
 
-    TransactionValidationResult Core::validateTransaction(
+    std::error_code Core::validateTransaction(
         const CachedTransaction &cachedTransaction,
         TransactionValidatorState &state,
         IBlockchainCache *cache,
@@ -2313,13 +2281,14 @@ namespace CryptoNote
             threadPool,
             blockIndex,
             blockMedianSize,
-            isPoolTransaction);
+            isPoolTransaction
+        );
 
-        auto result = txValidator.validate();
+        const auto result = txValidator.validate();
 
         fee = result.fee;
 
-        return result;
+        return result.errorCode;
     }
 
     uint32_t Core::findBlockchainSupplement(const std::vector<Crypto::Hash> &remoteBlockIds) const
@@ -2359,24 +2328,6 @@ namespace CryptoNote
         if (upgradeManager->getBlockMajorVersion(cachedBlock.getBlockIndex()) != block.majorVersion)
         {
             return error::BlockValidationError::WRONG_VERSION;
-        }
-
-        if (block.majorVersion >= BLOCK_MAJOR_VERSION_2)
-        {
-            if (block.majorVersion == BLOCK_MAJOR_VERSION_2 && block.parentBlock.majorVersion > BLOCK_MAJOR_VERSION_1)
-            {
-                logger(Logging::ERROR, Logging::BRIGHT_RED)
-                    << "Parent block of block " << cachedBlock.getBlockHash()
-                    << " has wrong major version: " << static_cast<int>(block.parentBlock.majorVersion) << ", at index "
-                    << cachedBlock.getBlockIndex() << " expected version is "
-                    << static_cast<int>(BLOCK_MAJOR_VERSION_1);
-                return error::BlockValidationError::PARENT_BLOCK_WRONG_VERSION;
-            }
-
-            if (cachedBlock.getParentBlockBinaryArray(false).size() > 2048)
-            {
-                return error::BlockValidationError::PARENT_BLOCK_SIZE_TOO_BIG;
-            }
         }
 
         if (block.timestamp > getAdjustedTime() + currency.blockFutureTimeLimit(previousBlockIndex + 1))
@@ -2421,20 +2372,6 @@ namespace CryptoNote
             return error::TransactionValidationError::BASE_INVALID_SIGNATURES_COUNT;
         }
 
-        const bool verifyCoinbaseOutputRecipient =
-            previousBlockIndex + 1 >= CryptoNote::parameters::COINBASE_TRANSACTION_OUTPUT_CLAIMING_HEIGHT;
-
-        const auto extra = Utilities::parseExtra(block.baseTransaction.extra);
-
-        Crypto::KeyDerivation derivation;
-
-        if (verifyCoinbaseOutputRecipient)
-        {
-            Crypto::generate_key_derivation(extra.recipientPublicViewKey, extra.transactionPrivateKey, derivation);
-        }
-
-        uint64_t outputIndex = 0;
-
         for (const auto &output : block.baseTransaction.outputs)
         {
             if (output.amount == 0)
@@ -2459,21 +2396,7 @@ namespace CryptoNote
                 return error::TransactionValidationError::OUTPUTS_AMOUNT_OVERFLOW;
             }
 
-            if (verifyCoinbaseOutputRecipient)
-            {
-                Crypto::PublicKey derivedSpendKey;
-                Crypto::underive_public_key(
-                    derivation, outputIndex, boost::get<KeyOutput>(output.target).key, derivedSpendKey);
-
-                if (derivedSpendKey != extra.recipientPublicSpendKey)
-                {
-                    return error::TransactionValidationError::MINER_OUTPUT_NOT_CLAIMED;
-                }
-            }
-
             minerReward += output.amount;
-
-            outputIndex++;
         }
 
         return error::BlockValidationError::VALIDATION_SUCCESS;
@@ -2608,8 +2531,9 @@ namespace CryptoNote
                 transactions.begin(),
                 transactions.end(),
                 UINT64_C(0),
-                [](uint64_t fee, const CachedTransaction &transaction)
-                { return fee + transaction.getTransactionFee(); });
+                [](uint64_t fee, const CachedTransaction &transaction) {
+                    return fee + transaction.getTransactionFee();
+                });
 
             int64_t emissionChange =
                 getEmissionChange(currency, *chainsLeaves[0], i - 1, cachedBlock, cumulativeSize, cumulativeFee);
@@ -2686,10 +2610,9 @@ namespace CryptoNote
     IBlockchainCache *Core::findAlternativeSegmentContainingBlock(const Crypto::Hash &blockHash) const
     {
         IBlockchainCache *cache = nullptr;
-        std::find_if(
-            ++chainsLeaves.begin(),
-            chainsLeaves.end(),
-            [&](IBlockchainCache *chain) { return cache = findIndexInChain(chain, blockHash); });
+        std::find_if(++chainsLeaves.begin(), chainsLeaves.end(), [&](IBlockchainCache *chain) {
+            return cache = findIndexInChain(chain, blockHash);
+        });
         return cache;
     }
 
@@ -2707,10 +2630,9 @@ namespace CryptoNote
     IBlockchainCache *Core::findAlternativeSegmentContainingBlock(uint32_t blockIndex) const
     {
         IBlockchainCache *cache = nullptr;
-        std::find_if(
-            ++chainsLeaves.begin(),
-            chainsLeaves.end(),
-            [&](IBlockchainCache *chain) { return cache = findIndexInChain(chain, blockIndex); });
+        std::find_if(++chainsLeaves.begin(), chainsLeaves.end(), [&](IBlockchainCache *chain) {
+            return cache = findIndexInChain(chain, blockIndex);
+        });
         return nullptr;
     }
 
@@ -2754,37 +2676,6 @@ namespace CryptoNote
     RawBlock Core::getRawBlock(IBlockchainCache *segment, uint32_t blockIndex) const
     {
         assert(blockIndex >= segment->getStartBlockIndex() && blockIndex <= segment->getTopBlockIndex());
-
-        return segment->getBlockByIndex(blockIndex);
-    }
-
-    CryptoNote::RawBlock Core::getRawBlock(uint32_t blockIndex) const
-    {
-        assert(!chainsStorage.empty());
-        assert(!chainsLeaves.empty());
-
-        throwIfNotInitialized();
-
-        IBlockchainCache *chain = chainsLeaves[0];
-
-        return chain->getBlockByIndex(blockIndex);
-    }
-
-    CryptoNote::RawBlock Core::getRawBlock(const Crypto::Hash &blockHash) const
-    {
-        assert(!chainsStorage.empty());
-        assert(!chainsLeaves.empty());
-
-        throwIfNotInitialized();
-
-        IBlockchainCache *segment =
-            findMainChainSegmentContainingBlock(blockHash); // TODO should it be requested from the main chain?
-        if (segment == nullptr)
-        {
-            throw std::runtime_error("Requested hash wasn't found in main blockchain");
-        }
-
-        const uint32_t blockIndex = segment->getBlockIndex(blockHash);
 
         return segment->getBlockByIndex(blockIndex);
     }
@@ -3048,40 +2939,51 @@ namespace CryptoNote
         /* Define our lambda function for checking and adding transactions to a block template */
         const auto addTransactionToBlockTemplate =
             [this, &spentInputsChecker, maxTotalSize, height, &transactionsSize, &fee, &block](
-                const CachedTransaction &transaction)
+                const CachedTransaction &transaction) {
+                /* If the current set of transactions included in the blocktemplate plus the transaction
+                   we just passed in exceed the maximum size of a block, it won't fit so we'll move on */
+                if (transactionsSize + transaction.getTransactionBinaryArray().size() > maxTotalSize)
+                {
+                    return false;
+                }
+
+                /* Check to validate that the transaction is valid for a block at this height */
+                if (!validateBlockTemplateTransaction(transaction, height))
+                {
+                    transactionPool->removeTransaction(transaction.getTransactionHash());
+
+                    return false;
+                }
+
+                /* Make sure that we have not already spent funds in this same block via
+                   another transaction that we've already included in this block template */
+                if (!spentInputsChecker.haveSpentInputs(transaction.getTransaction()))
+                {
+                    transactionsSize += transaction.getTransactionBinaryArray().size();
+
+                    fee += transaction.getTransactionFee();
+
+                    block.transactionHashes.emplace_back(transaction.getTransactionHash());
+
+                    return true;
+                }
+                else
+                {
+                    return false;
+                }
+            };
+
+        /* Then we'll loop through the fusion transactions as they don't
+           pay anything to use the network */
+        for (const auto &transaction : fusionTransactions)
         {
-            /* If the current set of transactions included in the blocktemplate plus the transaction
-               we just passed in exceed the maximum size of a block, it won't fit so we'll move on */
-            if (transactionsSize + transaction.getTransactionBinaryArray().size() > maxTotalSize)
+            if (addTransactionToBlockTemplate(transaction))
             {
-                return false;
+                logger(Logging::TRACE) << "Fusion transaction " << transaction.getTransactionHash()
+                                       << " included in block template";
             }
-
-            /* Check to validate that the transaction is valid for a block at this height */
-            if (!validateBlockTemplateTransaction(transaction, height))
-            {
-                transactionPool->removeTransaction(transaction.getTransactionHash());
-
-                return false;
-            }
-
-            /* Make sure that we have not already spent funds in this same block via
-               another transaction that we've already included in this block template */
-            if (!spentInputsChecker.haveSpentInputs(transaction.getTransaction()))
-            {
-                transactionsSize += transaction.getTransactionBinaryArray().size();
-
-                fee += transaction.getTransactionFee();
-
-                block.transactionHashes.emplace_back(transaction.getTransactionHash());
-
-                return true;
-            }
-            else
-            {
-                return false;
-            }
-        };
+            if (transactionsSize > maxTotalSize /2) break;
+        }
 
         /* First we're going to loop through transactions that have a fee:
            ie. the transactions that are paying to use the network */
@@ -3096,17 +2998,6 @@ namespace CryptoNote
             {
                 logger(Logging::TRACE) << "Transaction " << transaction.getTransactionHash()
                                        << " not included in block template";
-            }
-        }
-
-        /* Then we'll loop through the fusion transactions as they don't
-           pay anything to use the network */
-        for (const auto &transaction : fusionTransactions)
-        {
-            if (addTransactionToBlockTemplate(transaction))
-            {
-                logger(Logging::TRACE) << "Fusion transaction " << transaction.getTransactionHash()
-                                       << " included in block template";
             }
         }
     }
@@ -3136,9 +3027,9 @@ namespace CryptoNote
         }
 
         auto segmentIt = std::find_if(
-            chainsStorage.begin(),
-            chainsStorage.end(),
-            [&leaf](const std::unique_ptr<IBlockchainCache> &segment) { return segment.get() == leaf; });
+            chainsStorage.begin(), chainsStorage.end(), [&leaf](const std::unique_ptr<IBlockchainCache> &segment) {
+                return segment.get() == leaf;
+            });
 
         assert(segmentIt != chainsStorage.end());
 
@@ -3263,7 +3154,7 @@ namespace CryptoNote
             logger(Logging::INFO) << "Failed to get block details, mid chain reorg";
             std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
-            return getBlockDetails(blockHeight, attempt + 1);
+            return getBlockDetails(blockHeight, attempt+1);
         }
     }
 
@@ -3322,14 +3213,14 @@ namespace CryptoNote
 
         int64_t emissionChange = 0;
         bool result = currency.getBlockReward(
-            blockIndex,
             blockDetails.majorVersion,
             blockDetails.sizeMedian,
             0,
             prevBlockGeneratedCoins,
             0,
             blockDetails.baseReward,
-            emissionChange);
+            emissionChange,
+            getTopBlockIndex() + 1);
         if (result)
         {
         }
@@ -3337,14 +3228,14 @@ namespace CryptoNote
 
         uint64_t currentReward = 0;
         result = currency.getBlockReward(
-            blockIndex,
             blockDetails.majorVersion,
             blockDetails.sizeMedian,
             blockDetails.transactionsCumulativeSize,
             prevBlockGeneratedCoins,
             0,
             currentReward,
-            emissionChange);
+            emissionChange,
+            getTopBlockIndex() + 1);
         assert(result);
 
         if (blockDetails.baseReward == 0 && currentReward == 0)

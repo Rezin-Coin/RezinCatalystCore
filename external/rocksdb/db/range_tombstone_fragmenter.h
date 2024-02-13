@@ -16,7 +16,7 @@
 #include "rocksdb/status.h"
 #include "table/internal_iterator.h"
 
-namespace ROCKSDB_NAMESPACE {
+namespace rocksdb {
 
 struct FragmentedRangeTombstoneList {
  public:
@@ -144,8 +144,6 @@ class FragmentedRangeTombstoneIterator : public InternalIterator {
   void Invalidate() {
     pos_ = tombstones_->end();
     seq_pos_ = tombstones_->seq_end();
-    pinned_pos_ = tombstones_->end();
-    pinned_seq_pos_ = tombstones_->seq_end();
   }
 
   RangeTombstone Tombstone() const {
@@ -253,4 +251,4 @@ class FragmentedRangeTombstoneIterator : public InternalIterator {
   mutable InternalKey current_start_key_;
 };
 
-}  // namespace ROCKSDB_NAMESPACE
+}  // namespace rocksdb

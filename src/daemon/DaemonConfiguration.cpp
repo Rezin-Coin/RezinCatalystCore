@@ -1,5 +1,5 @@
-// Copyright (c) 2018-2020, The TurtleCoin Developers
-// Copyright (c) 2019-2020, The CyprusCoin Developers
+// Copyright (c) 2018-2019, The TurtleCoin Developers
+// Copyright (c) 2019, The CyprusCoin Developers
 //
 // Please see the included LICENSE file for more information.
 
@@ -87,10 +87,13 @@ namespace DaemonConfig
             "enable-blockexplorer",
             "Enable the Blockchain Explorer RPC",
             cxxopts::value<bool>()->default_value("false")->implicit_value("true"))(
+            "enable-blockexplorer-detailed",
+            "Enable the Blockchain Explorer Detailed RPC",
+            cxxopts::value<bool>()->default_value("false")->implicit_value("true"))(
             "enable-cors",
             "Adds header 'Access-Control-Allow-Origin' to the RPC responses using the <domain>. Uses the value "
             "specified as the domain. Use * for all.",
-            cxxopts::value<std::string>(),
+            cxxopts::value<std::vector<std::string>>(),
             "<domain>")(
             "fee-address",
             "Sets the convenience charge <address> for light wallets that use the daemon",
@@ -132,46 +135,49 @@ namespace DaemonConfig
             cxxopts::value<int>()->default_value(std::to_string(config.rpcPort)),
             "#");
 
-        options
-            .add_options("Peer")(
-                "add-exclusive-node",
-                "Manually add a peer to the local peer list ONLY attempt connections to it. [ip:port]",
-                cxxopts::value<std::vector<std::string>>(),
-                "<ip:port>")(
-                "add-peer", "Manually add a peer to the local peer list", cxxopts::value<std::vector<std::string>>(), "<ip:port>")("add-priority-node", "Manually add a peer to the local peer list and attempt to maintain a connection to it [ip:port]", cxxopts::value<std::vector<std::string>>(), "<ip:port>")("seed-node", "Connect to a node to retrieve the peer list and then disconnect", cxxopts::value<std::vector<std::string>>(), "<ip:port>");
+        options.add_options("Peer")(
+            "add-exclusive-node",
+            "Manually add a peer to the local peer list ONLY attempt connections to it. [ip:port]",
+            cxxopts::value<std::vector<std::string>>(),
+            "<ip:port>")(
+            "add-peer",
+            "Manually add a peer to the local peer list",
+            cxxopts::value<std::vector<std::string>>(),
+            "<ip:port>")(
+            "add-priority-node",
+            "Manually add a peer to the local peer list and attempt to maintain a connection to it [ip:port]",
+            cxxopts::value<std::vector<std::string>>(),
+            "<ip:port>")(
+            "seed-node",
+            "Connect to a node to retrieve the peer list and then disconnect",
+            cxxopts::value<std::vector<std::string>>(),
+            "<ip:port>");
 
-        const std::string maxOpenFiles = "(default: " + std::to_string(CryptoNote::ROCKSDB_MAX_OPEN_FILES)
-                                         + " (ROCKSDB), " + std::to_string(CryptoNote::LEVELDB_MAX_OPEN_FILES)
-                                         + " (LEVELDB))";
-
-        const std::string readCache = "(default: " + std::to_string(CryptoNote::ROCKSDB_READ_BUFFER_MB) + " (ROCKSDB), "
-                                      + std::to_string(CryptoNote::LEVELDB_READ_BUFFER_MB) + " (LEVELDB))";
-
-        const std::string writeBuffer = "(default: " + std::to_string(CryptoNote::ROCKSDB_WRITE_BUFFER_MB)
-                                        + " (ROCKSDB), " + std::to_string(CryptoNote::LEVELDB_WRITE_BUFFER_MB)
-                                        + " (LEVELDB))";
-
-        options.add_options("Database")(
-            "db-enable-level-db",
-            "Use LevelDB instead of RocksDB",
-            cxxopts::value<bool>()->default_value("false")->implicit_value("true"))(
-            "db-enable-compression",
-            "Enable database compression",
-            cxxopts::value<bool>()->default_value("false")->implicit_value(
-                "true"))("db-max-open-files", "Number of files that can be used by the database at one time " + maxOpenFiles, cxxopts::value<int>(), "#")(
-            "db-read-buffer-size",
-            "Size of the database read cache in megabytes (MB) " + readCache,
-            cxxopts::value<int>(),
-            "#")(
-            "db-threads",
-            "Number of background threads used for compaction and flush operations (RocksDB only)",
-            cxxopts::value<int>()->default_value(std::to_string(CryptoNote::ROCKSDB_BACKGROUND_THREADS)),
-            "#")("db-write-buffer-size", "Size of the database write buffer in megabytes (MB) " + writeBuffer, cxxopts::value<int>(), "#")(
-            "db-max-file-size",
-            "Max file size of database files in megabytes (MB) (LevelDB only)",
-            cxxopts::value<int>()->default_value(std::to_string(CryptoNote::LEVELDB_MAX_FILE_SIZE_MB)),
-            "#");
-
+        options.add_options("Database")
+#if defined(ENABLE_ZSTD_COMPRESSION) && !defined(USE_LEVELDB)
+            ("db-enable-compression",
+             "Enable database compression",
+             cxxopts::value<bool>()->default_value("false")->implicit_value("true"))
+#endif
+#if !defined(USE_LEVELDB)
+                ("db-max-open-files",
+                 "Number of files that can be used by the database at one time",
+                 cxxopts::value<int>()->default_value(std::to_string(config.dbMaxOpenFiles)),
+                 "#")(
+                    "db-read-buffer-size",
+                    "Size of the database read cache in megabytes (MB)",
+                    cxxopts::value<int>()->default_value(std::to_string(config.dbReadCacheSizeMB)),
+                    "#")(
+                    "db-threads",
+                    "Number of background threads used for compaction and flush operations",
+                    cxxopts::value<int>()->default_value(std::to_string(config.dbThreads)),
+                    "#")(
+                    "db-write-buffer-size",
+                    "Size of the database write buffer in megabytes (MB)",
+                    cxxopts::value<int>()->default_value(std::to_string(config.dbWriteBufferSizeMB)),
+                    "#")
+#endif
+                    ;
         options.add_options("Syncing")(
             "transaction-validation-threads",
             "Number of threads to use to validate a transaction's inputs in parallel",
@@ -254,32 +260,16 @@ namespace DaemonConfig
                 config.logLevel = cli["log-level"].as<int>();
             }
 
+#ifdef ENABLE_ZSTD_COMPRESSION
             if (cli.count("db-enable-compression") > 0)
             {
                 config.enableDbCompression = cli["db-enable-compression"].as<bool>();
             }
+#endif
 
             if (cli.count("no-console") > 0)
             {
                 config.noConsole = cli["no-console"].as<bool>();
-            }
-
-            /* Using levelDB, lets set the level DB defaults. Will overwrite with
-             * passed in values later if present. */
-            if (cli.count("db-enable-level-db") > 0 && cli["db-enable-level-db"].as<bool>())
-            {
-                config.enableLevelDB = true;
-                config.dbMaxOpenFiles = CryptoNote::LEVELDB_MAX_OPEN_FILES;
-                config.dbReadCacheSizeMB = CryptoNote::LEVELDB_READ_BUFFER_MB;
-                config.dbWriteBufferSizeMB = CryptoNote::LEVELDB_WRITE_BUFFER_MB;
-                config.dbMaxFileSizeMB = CryptoNote::LEVELDB_MAX_FILE_SIZE_MB;
-            }
-            else
-            {
-                config.dbMaxOpenFiles = CryptoNote::ROCKSDB_MAX_OPEN_FILES;
-                config.dbReadCacheSizeMB = CryptoNote::ROCKSDB_READ_BUFFER_MB;
-                config.dbWriteBufferSizeMB = CryptoNote::ROCKSDB_WRITE_BUFFER_MB;
-                config.dbThreads = CryptoNote::ROCKSDB_BACKGROUND_THREADS;
             }
 
             if (cli.count("db-max-open-files") > 0)
@@ -300,11 +290,6 @@ namespace DaemonConfig
             if (cli.count("db-write-buffer-size") > 0)
             {
                 config.dbWriteBufferSizeMB = cli["db-write-buffer-size"].as<int>();
-            }
-
-            if (cli.count("db-max-file-size") > 0)
-            {
-                config.dbMaxFileSizeMB = cli["db-max-file-size"].as<int>();
             }
 
             if (cli.count("local-ip") > 0)
@@ -372,9 +357,14 @@ namespace DaemonConfig
                 config.enableBlockExplorer = cli["enable-blockexplorer"].as<bool>();
             }
 
+            if (cli.count("enable-blockexplorer-detailed") > 0)
+            {
+                config.enableBlockExplorerDetailed = cli["enable-blockexplorer-detailed"].as<bool>();
+            }
+
             if (cli.count("enable-cors") > 0)
             {
-                config.enableCors = cli["enable-cors"].as<std::string>();
+                config.enableCors = cli["enable-cors"].as<std::vector<std::string>>();
             }
 
             if (cli.count("fee-address") > 0)
@@ -436,7 +426,7 @@ namespace DaemonConfig
         std::vector<std::string> priorityNodes;
         std::vector<std::string> seedNodes;
         std::vector<std::string> peers;
-        std::string cors;
+        std::vector<std::string> cors;
         bool updated = false;
 
         for (std::string line; std::getline(data, line);)
@@ -483,16 +473,19 @@ namespace DaemonConfig
                         throw std::runtime_error(std::string(e.what()) + " - Invalid value for " + cfgKey);
                     }
                 }
+#if defined(ENABLE_ZSTD_COMPRESSION) && !defined(USE_LEVELDB)
                 else if (cfgKey.compare("db-enable-compression") == 0)
                 {
                     config.enableDbCompression = cfgValue.at(0) == '1';
                     updated = true;
                 }
+#endif
                 else if (cfgKey.compare("no-console") == 0)
                 {
                     config.noConsole = cfgValue.at(0) == '1';
                     updated = true;
                 }
+#if !defined(USE_LEVELDB)
                 else if (cfgKey.compare("db-max-open-files") == 0)
                 {
                     try
@@ -541,6 +534,7 @@ namespace DaemonConfig
                         throw std::runtime_error(std::string(e.what()) + " - Invalid value for " + cfgKey);
                     }
                 }
+#endif
                 else if (cfgKey.compare("allow-local-ip") == 0)
                 {
                     config.localIp = cfgValue.at(0) == '1';
@@ -599,7 +593,7 @@ namespace DaemonConfig
                 }
                 else if (cfgKey.compare("p2p-reset-peerstate") == 0)
                 {
-                    config.p2pResetPeerstate = cfgValue.at(0) == '1';
+                    config.p2pResetPeerstate = cfgValue.at(0) == '1' ? true : false;
                     updated = true;
                 }
                 else if (cfgKey.compare("add-exclusive-node") == 0)
@@ -631,9 +625,14 @@ namespace DaemonConfig
                     config.enableBlockExplorer = cfgValue.at(0) == '1';
                     updated = true;
                 }
+                else if (cfgKey.compare("enable-blockexplorer-detailed") == 0)
+                {
+                    config.enableBlockExplorerDetailed = cfgValue.at(0) == '1';
+                    updated = true;
+                }
                 else if (cfgKey.compare("enable-cors") == 0)
                 {
-                    cors = cfgValue;
+                    cors.push_back(cfgValue);
                     config.enableCors = cors;
                     updated = true;
                 }
@@ -713,12 +712,6 @@ namespace DaemonConfig
         Document j;
         j.ParseStream(isw);
 
-        if (j.HasParseError())
-        {
-            throw std::invalid_argument(
-                "The --config-file you specified has JSON parser errors, please check the file and try again.");
-        }
-
         if (j.HasMember("data-dir"))
         {
             config.dataDirectory = j["data-dir"].GetString();
@@ -739,34 +732,18 @@ namespace DaemonConfig
             config.logLevel = j["log-level"].GetInt();
         }
 
-        /* Using levelDB, lets set the level DB defaults. Will overwrite with
-         * passed in values later if present. */
-        if (j.HasMember("db-enable-level-db") && j["db-enable-level-db"].GetBool())
-        {
-            config.enableLevelDB = true;
-            config.dbMaxOpenFiles = CryptoNote::LEVELDB_MAX_OPEN_FILES;
-            config.dbReadCacheSizeMB = CryptoNote::LEVELDB_READ_BUFFER_MB;
-            config.dbWriteBufferSizeMB = CryptoNote::LEVELDB_WRITE_BUFFER_MB;
-            config.dbMaxFileSizeMB = CryptoNote::LEVELDB_MAX_FILE_SIZE_MB;
-        }
-        else
-        {
-            config.dbMaxOpenFiles = CryptoNote::ROCKSDB_MAX_OPEN_FILES;
-            config.dbReadCacheSizeMB = CryptoNote::ROCKSDB_READ_BUFFER_MB;
-            config.dbWriteBufferSizeMB = CryptoNote::ROCKSDB_WRITE_BUFFER_MB;
-            config.dbThreads = CryptoNote::ROCKSDB_BACKGROUND_THREADS;
-        }
-
+#if defined(ENABLE_ZSTD_COMPRESSION) && !defined(USE_LEVELDB)
         if (j.HasMember("db-enable-compression"))
         {
             config.enableDbCompression = j["db-enable-compression"].GetBool();
         }
+#endif
 
         if (j.HasMember("no-console"))
         {
             config.noConsole = j["no-console"].GetBool();
         }
-
+#if !defined(USE_LEVELDB)
         if (j.HasMember("db-max-open-files"))
         {
             config.dbMaxOpenFiles = j["db-max-open-files"].GetInt();
@@ -787,11 +764,7 @@ namespace DaemonConfig
             config.dbWriteBufferSizeMB = j["db-write-buffer-size"].GetInt();
         }
 
-        if (j.HasMember("db-max-file-size"))
-        {
-            config.dbMaxFileSizeMB = j["db-max-file-size"].GetInt();
-        }
-
+#endif
         if (j.HasMember("allow-local-ip"))
         {
             config.localIp = j["allow-local-ip"].GetBool();
@@ -873,9 +846,18 @@ namespace DaemonConfig
             config.enableBlockExplorer = j["enable-blockexplorer"].GetBool();
         }
 
+        if (j.HasMember("enable-blockexplorer-detailed"))
+        {
+            config.enableBlockExplorerDetailed = j["enable-blockexplorer-detailed"].GetBool();
+        }
+
         if (j.HasMember("enable-cors"))
         {
-            config.enableCors = j["enable-cors"].GetString();
+            const Value &va = j["enable-cors"];
+            for (auto &v : va.GetArray())
+            {
+                config.enableCors.push_back(v.GetString());
+            }
         }
 
         if (j.HasMember("fee-address"))
@@ -886,11 +868,6 @@ namespace DaemonConfig
         if (j.HasMember("fee-amount"))
         {
             config.feeAmount = j["fee-amount"].GetInt();
-        }
-
-        if (j.HasMember("transaction-validation-threads"))
-        {
-            config.transactionValidationThreads = j["transaction-validation-threads"].GetInt();
         }
     }
 
@@ -905,13 +882,15 @@ namespace DaemonConfig
         j.AddMember("log-file", config.logFile, alloc);
         j.AddMember("log-level", config.logLevel, alloc);
         j.AddMember("no-console", config.noConsole, alloc);
-        j.AddMember("db-enable-level-db", config.enableLevelDB, alloc);
+#if defined(ENABLE_ZSTD_COMPRESSION) && !defined(USE_LEVELDB)
         j.AddMember("db-enable-compression", config.enableDbCompression, alloc);
+#endif
+#if !defined(USE_LEVELDB)
         j.AddMember("db-max-open-files", config.dbMaxOpenFiles, alloc);
-        j.AddMember("db-read-buffer-size", config.dbReadCacheSizeMB, alloc);
+        j.AddMember("db-read-buffer-size", (config.dbReadCacheSizeMB), alloc);
         j.AddMember("db-threads", config.dbThreads, alloc);
-        j.AddMember("db-write-buffer-size", config.dbWriteBufferSizeMB, alloc);
-        j.AddMember("db-max-file-size", config.dbMaxFileSizeMB, alloc);
+        j.AddMember("db-write-buffer-size", (config.dbWriteBufferSizeMB), alloc);
+#endif
         j.AddMember("allow-local-ip", config.localIp, alloc);
         j.AddMember("hide-my-port", config.hideMyPort, alloc);
         j.AddMember("p2p-bind-ip", config.p2pInterface, alloc);
@@ -957,11 +936,19 @@ namespace DaemonConfig
             j.AddMember("seed-node", arr, alloc);
         }
 
-        j.AddMember("enable-cors", config.enableCors, alloc);
+        {
+            Value arr(rapidjson::kArrayType);
+            for (auto v : config.enableCors)
+            {
+                arr.PushBack(Value().SetString(StringRef(v.c_str())), alloc);
+            }
+            j.AddMember("enable-cors", arr, alloc);
+        }
+
         j.AddMember("enable-blockexplorer", config.enableBlockExplorer, alloc);
+        j.AddMember("enable-blockexplorer-detailed", config.enableBlockExplorerDetailed, alloc);
         j.AddMember("fee-address", config.feeAddress, alloc);
         j.AddMember("fee-amount", config.feeAmount, alloc);
-        j.AddMember("transaction-validation-threads", config.transactionValidationThreads, alloc);
 
         return j;
     }

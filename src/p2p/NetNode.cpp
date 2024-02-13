@@ -260,21 +260,11 @@ namespace CryptoNote
 
     using namespace std::placeholders;
 
-#define INVOKE_HANDLER(CMD, Handler)     \
-    case CMD::ID:                        \
-    {                                    \
-        ret = invokeAdaptor<CMD>(        \
-            cmd.buf,                     \
-            out,                         \
-            ctx,                         \
-            std::bind(                   \
-                Handler,                 \
-                this,                    \
-                std::placeholders::_1,   \
-                std::placeholders::_2,   \
-                std::placeholders::_3,   \
-                std::placeholders::_4)); \
-        break;                           \
+#define INVOKE_HANDLER(CMD, Handler)                                                           \
+    case CMD::ID:                                                                              \
+    {                                                                                          \
+        ret = invokeAdaptor<CMD>(cmd.buf, out, ctx, std::bind(Handler, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, std::placeholders::_4)); \
+        break;                                                                                 \
     }
 
     int NodeServer::handleCommand(
@@ -391,8 +381,9 @@ namespace CryptoNote
         const BinaryArray &data_buff,
         const boost::uuids::uuid *excludeConnection)
     {
-        m_dispatcher.remoteSpawn([this, command, data_buff, excludeConnection]
-                                 { relay_notify_to_all(command, data_buff, excludeConnection); });
+        m_dispatcher.remoteSpawn([this, command, data_buff, excludeConnection] {
+            relay_notify_to_all(command, data_buff, excludeConnection);
+        });
     }
 
     //-----------------------------------------------------------------------------------
@@ -401,23 +392,19 @@ namespace CryptoNote
         const BinaryArray &data_buff,
         const std::list<boost::uuids::uuid> relayList)
     {
-        m_dispatcher.remoteSpawn(
-            [this, command, data_buff, relayList]
-            {
-                forEachConnection(
-                    [&](P2pConnectionContext &conn)
+        m_dispatcher.remoteSpawn([this, command, data_buff, relayList] {
+            forEachConnection([&](P2pConnectionContext &conn) {
+                if (std::find(relayList.begin(), relayList.end(), conn.m_connection_id) != relayList.end())
+                {
+                    if (conn.peerId
+                        && (conn.m_state == CryptoNoteConnectionContext::state_normal
+                            || conn.m_state == CryptoNoteConnectionContext::state_synchronizing))
                     {
-                        if (std::find(relayList.begin(), relayList.end(), conn.m_connection_id) != relayList.end())
-                        {
-                            if (conn.peerId
-                                && (conn.m_state == CryptoNoteConnectionContext::state_normal
-                                    || conn.m_state == CryptoNoteConnectionContext::state_synchronizing))
-                            {
-                                conn.pushMessage(P2pMessage(P2pMessage::NOTIFY, command, data_buff));
-                            }
-                        }
-                    });
+                        conn.pushMessage(P2pMessage(P2pMessage::NOTIFY, command, data_buff));
+                    }
+                }
             });
+        });
     }
 
     //-----------------------------------------------------------------------------------
@@ -628,15 +615,11 @@ namespace CryptoNote
     {
         m_stop = true;
 
-        m_dispatcher.remoteSpawn(
-            [this]
-            {
-                m_stopEvent.set();
-                m_payload_handler.stop();
-            });
+        m_dispatcher.remoteSpawn([this] {
+            m_stopEvent.set();
+            m_payload_handler.stop();
+        });
 
-        logger(INFO, BRIGHT_YELLOW)
-            << "Stop signal sent, please only EXIT or CTRL+C one time to avoid stalling the shutdown process.";
         return true;
     }
 
@@ -717,16 +700,14 @@ namespace CryptoNote
         m_payload_handler.get_payload_sync_data(arg.payload_data);
         auto cmdBuf = LevinProtocol::encode<COMMAND_TIMED_SYNC::request>(arg);
 
-        forEachConnection(
-            [&](P2pConnectionContext &conn)
+        forEachConnection([&](P2pConnectionContext &conn) {
+            if (conn.peerId
+                && (conn.m_state == CryptoNoteConnectionContext::state_normal
+                    || conn.m_state == CryptoNoteConnectionContext::state_idle))
             {
-                if (conn.peerId
-                    && (conn.m_state == CryptoNoteConnectionContext::state_normal
-                        || conn.m_state == CryptoNoteConnectionContext::state_idle))
-                {
-                    conn.pushMessage(P2pMessage(P2pMessage::COMMAND, COMMAND_TIMED_SYNC::ID, cmdBuf));
-                }
-            });
+                conn.pushMessage(P2pMessage(P2pMessage::COMMAND, COMMAND_TIMED_SYNC::ID, cmdBuf));
+            }
+        });
 
         return true;
     }
@@ -829,24 +810,18 @@ namespace CryptoNote
 
             try
             {
-                System::Context<System::TcpConnection> connectionContext(
-                    m_dispatcher,
-                    [&]
-                    {
-                        System::TcpConnector connector(m_dispatcher);
-                        return connector.connect(
-                            System::Ipv4Address(Common::ipAddressToString(na.ip)), static_cast<uint16_t>(na.port));
-                    });
+                System::Context<System::TcpConnection> connectionContext(m_dispatcher, [&] {
+                    System::TcpConnector connector(m_dispatcher);
+                    return connector.connect(
+                        System::Ipv4Address(Common::ipAddressToString(na.ip)), static_cast<uint16_t>(na.port));
+                });
 
-                System::Context<> timeoutContext(
-                    m_dispatcher,
-                    [&]
-                    {
-                        System::Timer(m_dispatcher)
-                            .sleep(std::chrono::milliseconds(m_config.m_net_config.connection_timeout));
-                        logger(DEBUGGING) << "Connection to " << na << " timed out, interrupt it";
-                        safeInterrupt(connectionContext);
-                    });
+                System::Context<> timeoutContext(m_dispatcher, [&] {
+                    System::Timer(m_dispatcher)
+                        .sleep(std::chrono::milliseconds(m_config.m_net_config.connection_timeout));
+                    logger(DEBUGGING) << "Connection to " << na << " timed out, interrupt it";
+                    safeInterrupt(connectionContext);
+                });
 
                 connection = std::move(connectionContext.get());
             }
@@ -866,24 +841,18 @@ namespace CryptoNote
 
             try
             {
-                System::Context<bool> handshakeContext(
-                    m_dispatcher,
-                    [&]
-                    {
-                        CryptoNote::LevinProtocol proto(ctx.connection);
-                        return handshake(proto, ctx, just_take_peerlist);
-                    });
+                System::Context<bool> handshakeContext(m_dispatcher, [&] {
+                    CryptoNote::LevinProtocol proto(ctx.connection);
+                    return handshake(proto, ctx, just_take_peerlist);
+                });
 
-                System::Context<> timeoutContext(
-                    m_dispatcher,
-                    [&]
-                    {
-                        // Here we use connection_timeout * 3, one for this handshake, and two for back ping from peer.
-                        System::Timer(m_dispatcher)
-                            .sleep(std::chrono::milliseconds(m_config.m_net_config.connection_timeout * 3));
-                        logger(DEBUGGING) << "Handshake with " << na << " timed out, interrupt it";
-                        safeInterrupt(handshakeContext);
-                    });
+                System::Context<> timeoutContext(m_dispatcher, [&] {
+                    // Here we use connection_timeout * 3, one for this handshake, and two for back ping from peer.
+                    System::Timer(m_dispatcher)
+                        .sleep(std::chrono::milliseconds(m_config.m_net_config.connection_timeout * 3));
+                    logger(DEBUGGING) << "Handshake with " << na << " timed out, interrupt it";
+                    safeInterrupt(handshakeContext);
+                });
 
                 if (!handshakeContext.get())
                 {
@@ -1298,16 +1267,14 @@ namespace CryptoNote
         boost::uuids::uuid excludeId =
             excludeConnection ? *excludeConnection : boost::value_initialized<boost::uuids::uuid>();
 
-        forEachConnection(
-            [&](P2pConnectionContext &conn)
+        forEachConnection([&](P2pConnectionContext &conn) {
+            if (conn.peerId && conn.m_connection_id != excludeId
+                && (conn.m_state == CryptoNoteConnectionContext::state_normal
+                    || conn.m_state == CryptoNoteConnectionContext::state_synchronizing))
             {
-                if (conn.peerId && conn.m_connection_id != excludeId
-                    && (conn.m_state == CryptoNoteConnectionContext::state_normal
-                        || conn.m_state == CryptoNoteConnectionContext::state_synchronizing))
-                {
-                    conn.pushMessage(P2pMessage(P2pMessage::NOTIFY, command, data_buff));
-                }
-            });
+                conn.pushMessage(P2pMessage(P2pMessage::NOTIFY, command, data_buff));
+            }
+        });
     }
 
     //-----------------------------------------------------------------------------------
@@ -1349,24 +1316,18 @@ namespace CryptoNote
         {
             COMMAND_PING::request req;
             COMMAND_PING::response rsp;
-            System::Context<> pingContext(
-                m_dispatcher,
-                [&]
-                {
-                    System::TcpConnector connector(m_dispatcher);
-                    auto connection = connector.connect(System::Ipv4Address(ip), static_cast<uint16_t>(port));
-                    LevinProtocol(connection).invoke(COMMAND_PING::ID, req, rsp);
-                });
+            System::Context<> pingContext(m_dispatcher, [&] {
+                System::TcpConnector connector(m_dispatcher);
+                auto connection = connector.connect(System::Ipv4Address(ip), static_cast<uint16_t>(port));
+                LevinProtocol(connection).invoke(COMMAND_PING::ID, req, rsp);
+            });
 
-            System::Context<> timeoutContext(
-                m_dispatcher,
-                [&]
-                {
-                    System::Timer(m_dispatcher)
-                        .sleep(std::chrono::milliseconds(m_config.m_net_config.connection_timeout * 2));
-                    logger(DEBUGGING) << context << "Back ping timed out" << ip << ":" << port;
-                    safeInterrupt(pingContext);
-                });
+            System::Context<> timeoutContext(m_dispatcher, [&] {
+                System::Timer(m_dispatcher)
+                    .sleep(std::chrono::milliseconds(m_config.m_net_config.connection_timeout * 2));
+                logger(DEBUGGING) << context << "Back ping timed out" << ip << ":" << port;
+                safeInterrupt(pingContext);
+            });
 
             pingContext.get();
 
@@ -1687,75 +1648,72 @@ namespace CryptoNote
     void NodeServer::connectionHandler(const boost::uuids::uuid &connectionId, P2pConnectionContext &ctx)
     {
         // This inner context is necessary in order to stop connection handler at any moment
-        System::Context<> context(
-            m_dispatcher,
-            [this, &connectionId, &ctx]
+        System::Context<> context(m_dispatcher, [this, &connectionId, &ctx] {
+            System::Context<> writeContext(m_dispatcher, std::bind(&NodeServer::writeHandler, this, std::ref(ctx)));
+
+            try
             {
-                System::Context<> writeContext(m_dispatcher, std::bind(&NodeServer::writeHandler, this, std::ref(ctx)));
+                on_connection_new(ctx);
 
-                try
+                LevinProtocol proto(ctx.connection);
+                LevinProtocol::Command cmd;
+
+                for (;;)
                 {
-                    on_connection_new(ctx);
-
-                    LevinProtocol proto(ctx.connection);
-                    LevinProtocol::Command cmd;
-
-                    for (;;)
+                    if (ctx.m_state == CryptoNoteConnectionContext::state_sync_required)
                     {
-                        if (ctx.m_state == CryptoNoteConnectionContext::state_sync_required)
-                        {
-                            ctx.m_state = CryptoNoteConnectionContext::state_synchronizing;
-                            m_payload_handler.start_sync(ctx);
-                        }
-                        else if (ctx.m_state == CryptoNoteConnectionContext::state_pool_sync_required)
-                        {
-                            ctx.m_state = CryptoNoteConnectionContext::state_normal;
-                            m_payload_handler.requestMissingPoolTransactions(ctx);
-                        }
+                        ctx.m_state = CryptoNoteConnectionContext::state_synchronizing;
+                        m_payload_handler.start_sync(ctx);
+                    }
+                    else if (ctx.m_state == CryptoNoteConnectionContext::state_pool_sync_required)
+                    {
+                        ctx.m_state = CryptoNoteConnectionContext::state_normal;
+                        m_payload_handler.requestMissingPoolTransactions(ctx);
+                    }
 
-                        if (!proto.readCommand(cmd))
+                    if (!proto.readCommand(cmd))
+                    {
+                        break;
+                    }
+
+                    BinaryArray response;
+                    bool handled = false;
+                    auto retcode = handleCommand(cmd, response, ctx, handled);
+
+                    // send response
+                    if (cmd.needReply())
+                    {
+                        if (!handled)
                         {
-                            break;
-                        }
-
-                        BinaryArray response;
-                        bool handled = false;
-                        auto retcode = handleCommand(cmd, response, ctx, handled);
-
-                        // send response
-                        if (cmd.needReply())
-                        {
-                            if (!handled)
-                            {
-                                retcode = static_cast<int32_t>(LevinError::ERROR_CONNECTION_HANDLER_NOT_DEFINED);
-                                response.clear();
-                            }
-
-                            ctx.pushMessage(P2pMessage(P2pMessage::REPLY, cmd.command, std::move(response), retcode));
+                            retcode = static_cast<int32_t>(LevinError::ERROR_CONNECTION_HANDLER_NOT_DEFINED);
+                            response.clear();
                         }
 
-                        if (ctx.m_state == CryptoNoteConnectionContext::state_shutdown)
-                        {
-                            break;
-                        }
+                        ctx.pushMessage(P2pMessage(P2pMessage::REPLY, cmd.command, std::move(response), retcode));
+                    }
+
+                    if (ctx.m_state == CryptoNoteConnectionContext::state_shutdown)
+                    {
+                        break;
                     }
                 }
-                catch (System::InterruptedException &)
-                {
-                    logger(DEBUGGING) << ctx << "connectionHandler() inner context is interrupted";
-                }
-                catch (std::exception &e)
-                {
-                    logger(DEBUGGING) << ctx << "Exception in connectionHandler: " << e.what();
-                }
+            }
+            catch (System::InterruptedException &)
+            {
+                logger(DEBUGGING) << ctx << "connectionHandler() inner context is interrupted";
+            }
+            catch (std::exception &e)
+            {
+                logger(DEBUGGING) << ctx << "Exception in connectionHandler: " << e.what();
+            }
 
-                safeInterrupt(ctx);
-                safeInterrupt(writeContext);
-                writeContext.wait();
+            safeInterrupt(ctx);
+            safeInterrupt(writeContext);
+            writeContext.wait();
 
-                on_connection_close(ctx);
-                m_connections.erase(connectionId);
-            });
+            on_connection_close(ctx);
+            m_connections.erase(connectionId);
+        });
 
         ctx.context = &context;
 

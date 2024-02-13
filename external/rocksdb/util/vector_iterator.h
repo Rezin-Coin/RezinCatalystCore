@@ -10,7 +10,7 @@
 #include "rocksdb/slice.h"
 #include "table/internal_iterator.h"
 
-namespace ROCKSDB_NAMESPACE {
+namespace rocksdb {
 
 // Iterator over a vector of keys/values
 class VectorIterator : public InternalIterator {
@@ -20,7 +20,7 @@ class VectorIterator : public InternalIterator {
       : keys_(std::move(keys)),
         values_(std::move(values)),
         indexed_cmp_(icmp, &keys_),
-        current_(0) {
+        current_(keys.size()) {
     assert(keys_.size() == values_.size());
 
     indices_.reserve(keys_.size());
@@ -98,4 +98,4 @@ class VectorIterator : public InternalIterator {
   size_t current_;
 };
 
-}  // namespace ROCKSDB_NAMESPACE
+}  // namespace rocksdb

@@ -15,20 +15,20 @@ namespace System
     {
       public:
         OperationTimeout(Dispatcher &dispatcher, T &object, std::chrono::nanoseconds timeout):
-            object(object), timerContext(dispatcher), timeoutTimer(dispatcher)
+            object(object),
+            timerContext(dispatcher),
+            timeoutTimer(dispatcher)
         {
-            timerContext.spawn(
-                [this, timeout]()
+            timerContext.spawn([this, timeout]() {
+                try
                 {
-                    try
-                    {
-                        timeoutTimer.sleep(timeout);
-                        timerContext.interrupt();
-                    }
-                    catch (...)
-                    {
-                    }
-                });
+                    timeoutTimer.sleep(timeout);
+                    timerContext.interrupt();
+                }
+                catch (...)
+                {
+                }
+            });
         }
 
         ~OperationTimeout()

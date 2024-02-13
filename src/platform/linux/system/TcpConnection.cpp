@@ -7,8 +7,6 @@
 
 #include <arpa/inet.h>
 #include <cassert>
-#include <cstdint>
-#include <stdexcept>
 #include <sys/epoll.h>
 #include <system/ErrorMessage.h>
 #include <system/InterruptedException.h>
@@ -123,8 +121,7 @@ namespace System
                 }
                 else
                 {
-                    dispatcher->getCurrentContext()->interruptProcedure = [&]()
-                    {
+                    dispatcher->getCurrentContext()->interruptProcedure = [&]() {
                         assert(dispatcher != nullptr);
                         assert(contextPair.readContext != nullptr);
                         epoll_event connectionEvent;
@@ -255,8 +252,7 @@ namespace System
                 }
                 else
                 {
-                    dispatcher->getCurrentContext()->interruptProcedure = [&]()
-                    {
+                    dispatcher->getCurrentContext()->interruptProcedure = [&]() {
                         assert(dispatcher != nullptr);
                         assert(contextPair.writeContext != nullptr);
                         epoll_event connectionEvent;

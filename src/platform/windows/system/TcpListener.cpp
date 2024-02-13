@@ -196,8 +196,7 @@ namespace System
                     context2.context = dispatcher->getCurrentContext();
                     context2.interrupted = false;
                     context = &context2;
-                    dispatcher->getCurrentContext()->interruptProcedure = [&]()
-                    {
+                    dispatcher->getCurrentContext()->interruptProcedure = [&]() {
                         assert(dispatcher != nullptr);
                         assert(context != nullptr);
                         TcpListenerContext *context2 = static_cast<TcpListenerContext *>(context);

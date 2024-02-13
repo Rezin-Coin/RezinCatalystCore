@@ -9,15 +9,11 @@
 #include <vector>
 #include "db/db_impl/db_impl.h"
 
-namespace ROCKSDB_NAMESPACE {
+namespace rocksdb {
 
 class CompactedDBImpl : public DBImpl {
  public:
   CompactedDBImpl(const DBOptions& options, const std::string& dbname);
-  // No copying allowed
-  CompactedDBImpl(const CompactedDBImpl&) = delete;
-  void operator=(const CompactedDBImpl&) = delete;
-
   virtual ~CompactedDBImpl();
 
   static Status Open(const Options& options, const std::string& dbname,
@@ -108,6 +104,10 @@ class CompactedDBImpl : public DBImpl {
   Version* version_;
   const Comparator* user_comparator_;
   LevelFilesBrief files_;
+
+  // No copying allowed
+  CompactedDBImpl(const CompactedDBImpl&);
+  void operator=(const CompactedDBImpl&);
 };
-}  // namespace ROCKSDB_NAMESPACE
+}
 #endif  // ROCKSDB_LITE

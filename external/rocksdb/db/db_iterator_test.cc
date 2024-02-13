@@ -9,7 +9,6 @@
 
 #include <functional>
 
-#include "db/arena_wrapped_db_iter.h"
 #include "db/db_iter.h"
 #include "db/db_test_util.h"
 #include "port/port.h"
@@ -18,7 +17,7 @@
 #include "rocksdb/perf_context.h"
 #include "table/block_based/flush_block_policy.h"
 
-namespace ROCKSDB_NAMESPACE {
+namespace rocksdb {
 
 // A dumb ReadCallback which saying every key is committed.
 class DummyReadCallback : public ReadCallback {
@@ -109,7 +108,7 @@ TEST_P(DBIteratorTest, NonBlockingIteration) {
   do {
     ReadOptions non_blocking_opts, regular_opts;
     Options options = CurrentOptions();
-    options.statistics = ROCKSDB_NAMESPACE::CreateDBStatistics();
+    options.statistics = rocksdb::CreateDBStatistics();
     non_blocking_opts.read_tier = kBlockCacheTier;
     CreateAndReopenWithCF({"pikachu"}, options);
     // write one kv to the database.
@@ -180,33 +179,6 @@ TEST_P(DBIteratorTest, IterSeekBeforePrev) {
   iter->Prev();
   iter->Seek(Slice("a"));
   iter->Prev();
-  delete iter;
-}
-
-TEST_P(DBIteratorTest, IterReseekNewUpperBound) {
-  Random rnd(301);
-  Options options = CurrentOptions();
-  BlockBasedTableOptions table_options;
-  table_options.block_size = 1024;
-  table_options.block_size_deviation = 50;
-  options.table_factory.reset(NewBlockBasedTableFactory(table_options));
-  options.compression = kNoCompression;
-  Reopen(options);
-
-  ASSERT_OK(Put("a", RandomString(&rnd, 400)));
-  ASSERT_OK(Put("aabb", RandomString(&rnd, 400)));
-  ASSERT_OK(Put("aaef", RandomString(&rnd, 400)));
-  ASSERT_OK(Put("b", RandomString(&rnd, 400)));
-  dbfull()->Flush(FlushOptions());
-  ReadOptions opts;
-  Slice ub = Slice("aa");
-  opts.iterate_upper_bound = &ub;
-  auto iter = NewIterator(opts);
-  iter->Seek(Slice("a"));
-  ub = Slice("b");
-  iter->Seek(Slice("aabc"));
-  ASSERT_TRUE(iter->Valid());
-  ASSERT_EQ(iter->key().ToString(), "aaef");
   delete iter;
 }
 
@@ -535,7 +507,7 @@ TEST_P(DBIteratorTest, IterReseek) {
   Options options = CurrentOptions(options_override);
   options.max_sequential_skip_in_iterations = 3;
   options.create_if_missing = true;
-  options.statistics = ROCKSDB_NAMESPACE::CreateDBStatistics();
+  options.statistics = rocksdb::CreateDBStatistics();
   DestroyAndReopen(options);
   CreateAndReopenWithCF({"pikachu"}, options);
 
@@ -804,50 +776,6 @@ TEST_P(DBIteratorTest, IteratorPinsRef) {
   } while (ChangeCompactOptions());
 }
 
-TEST_P(DBIteratorTest, IteratorDeleteAfterCfDelete) {
-  CreateAndReopenWithCF({"pikachu"}, CurrentOptions());
-
-  Put(1, "foo", "delete-cf-then-delete-iter");
-  Put(1, "hello", "value2");
-
-  ColumnFamilyHandle* cf = handles_[1];
-  ReadOptions ro;
-
-  auto* iter = db_->NewIterator(ro, cf);
-  iter->SeekToFirst();
-  ASSERT_EQ(IterStatus(iter), "foo->delete-cf-then-delete-iter");
-
-  // delete CF handle
-  db_->DestroyColumnFamilyHandle(cf);
-  handles_.erase(std::begin(handles_) + 1);
-
-  // delete Iterator after CF handle is deleted
-  iter->Next();
-  ASSERT_EQ(IterStatus(iter), "hello->value2");
-  delete iter;
-}
-
-TEST_P(DBIteratorTest, IteratorDeleteAfterCfDrop) {
-  CreateAndReopenWithCF({"pikachu"}, CurrentOptions());
-
-  Put(1, "foo", "drop-cf-then-delete-iter");
-
-  ReadOptions ro;
-  ColumnFamilyHandle* cf = handles_[1];
-
-  auto* iter = db_->NewIterator(ro, cf);
-  iter->SeekToFirst();
-  ASSERT_EQ(IterStatus(iter), "foo->drop-cf-then-delete-iter");
-
-  // drop and delete CF
-  db_->DropColumnFamily(cf);
-  db_->DestroyColumnFamilyHandle(cf);
-  handles_.erase(std::begin(handles_) + 1);
-
-  // delete Iterator after CF handle is dropped
-  delete iter;
-}
-
 // SetOptions not defined in ROCKSDB LITE
 #ifndef ROCKSDB_LITE
 TEST_P(DBIteratorTest, DBIteratorBoundTest) {
@@ -1026,7 +954,7 @@ TEST_P(DBIteratorTest, DBIteratorBoundMultiSeek) {
   Options options = CurrentOptions();
   options.env = env_;
   options.create_if_missing = true;
-  options.statistics = ROCKSDB_NAMESPACE::CreateDBStatistics();
+  options.statistics = rocksdb::CreateDBStatistics();
   options.prefix_extractor = nullptr;
   DestroyAndReopen(options);
   ASSERT_OK(Put("a", "0"));
@@ -1081,10 +1009,10 @@ TEST_P(DBIteratorTest, DBIteratorBoundOptimizationTest) {
   for (auto format_version : {2, 3, 4}) {
     int upper_bound_hits = 0;
     Options options = CurrentOptions();
-    ROCKSDB_NAMESPACE::SyncPoint::GetInstance()->SetCallBack(
+    rocksdb::SyncPoint::GetInstance()->SetCallBack(
         "BlockBasedTableIterator:out_of_bound",
         [&upper_bound_hits](void*) { upper_bound_hits++; });
-    ROCKSDB_NAMESPACE::SyncPoint::GetInstance()->EnableProcessing();
+    rocksdb::SyncPoint::GetInstance()->EnableProcessing();
     options.env = env_;
     options.create_if_missing = true;
     options.prefix_extractor = nullptr;
@@ -1132,7 +1060,7 @@ TEST_P(DBIteratorTest, IndexWithFirstKey) {
     options.create_if_missing = true;
     options.prefix_extractor = nullptr;
     options.merge_operator = MergeOperators::CreateStringAppendOperator();
-    options.statistics = ROCKSDB_NAMESPACE::CreateDBStatistics();
+    options.statistics = rocksdb::CreateDBStatistics();
     Statistics* stats = options.statistics.get();
     BlockBasedTableOptions table_options;
     table_options.index_type =
@@ -1141,8 +1069,7 @@ TEST_P(DBIteratorTest, IndexWithFirstKey) {
         BlockBasedTableOptions::IndexShorteningMode::kNoShortening;
     table_options.flush_block_policy_factory =
         std::make_shared<FlushBlockEveryKeyPolicyFactory>();
-    table_options.block_cache =
-        NewLRUCache(8000);  // fits all blocks and their cache metadata overhead
+    table_options.block_cache = NewLRUCache(1000);  // fits all blocks
     options.table_factory.reset(NewBlockBasedTableFactory(table_options));
 
     DestroyAndReopen(options);
@@ -1167,62 +1094,32 @@ TEST_P(DBIteratorTest, IndexWithFirstKey) {
     ropt.tailing = tailing;
     std::unique_ptr<Iterator> iter(NewIterator(ropt));
 
-    ropt.read_tier = ReadTier::kBlockCacheTier;
-    std::unique_ptr<Iterator> nonblocking_iter(NewIterator(ropt));
-
     iter->Seek("b10");
     ASSERT_TRUE(iter->Valid());
     EXPECT_EQ("b2", iter->key().ToString());
     EXPECT_EQ("y2", iter->value().ToString());
     EXPECT_EQ(1, stats->getTickerCount(BLOCK_CACHE_DATA_MISS));
 
-    // The cache-only iterator should succeed too, using the blocks pulled into
-    // the cache by the previous iterator.
-    nonblocking_iter->Seek("b10");
-    ASSERT_TRUE(nonblocking_iter->Valid());
-    EXPECT_EQ("b2", nonblocking_iter->key().ToString());
-    EXPECT_EQ("y2", nonblocking_iter->value().ToString());
-    EXPECT_EQ(1, stats->getTickerCount(BLOCK_CACHE_DATA_HIT));
-
-    // ... but it shouldn't be able to step forward since the next block is
-    // not in cache yet.
-    nonblocking_iter->Next();
-    ASSERT_FALSE(nonblocking_iter->Valid());
-    ASSERT_TRUE(nonblocking_iter->status().IsIncomplete());
-
-    // ... nor should a seek to the next key succeed.
-    nonblocking_iter->Seek("b20");
-    ASSERT_FALSE(nonblocking_iter->Valid());
-    ASSERT_TRUE(nonblocking_iter->status().IsIncomplete());
-
     iter->Next();
     ASSERT_TRUE(iter->Valid());
     EXPECT_EQ("b3", iter->key().ToString());
     EXPECT_EQ("y3", iter->value().ToString());
-    EXPECT_EQ(4, stats->getTickerCount(BLOCK_CACHE_DATA_MISS));
-    EXPECT_EQ(1, stats->getTickerCount(BLOCK_CACHE_DATA_HIT));
-
-    // After the blocking iterator loaded the next block, the nonblocking
-    // iterator's seek should succeed.
-    nonblocking_iter->Seek("b20");
-    ASSERT_TRUE(nonblocking_iter->Valid());
-    EXPECT_EQ("b3", nonblocking_iter->key().ToString());
-    EXPECT_EQ("y3", nonblocking_iter->value().ToString());
-    EXPECT_EQ(2, stats->getTickerCount(BLOCK_CACHE_DATA_HIT));
+    EXPECT_EQ(2, stats->getTickerCount(BLOCK_CACHE_DATA_MISS));
+    EXPECT_EQ(0, stats->getTickerCount(BLOCK_CACHE_DATA_HIT));
 
     iter->Seek("c0");
     ASSERT_TRUE(iter->Valid());
     EXPECT_EQ("c0", iter->key().ToString());
     EXPECT_EQ("z1,z2", iter->value().ToString());
-    EXPECT_EQ(2, stats->getTickerCount(BLOCK_CACHE_DATA_HIT));
-    EXPECT_EQ(6, stats->getTickerCount(BLOCK_CACHE_DATA_MISS));
+    EXPECT_EQ(0, stats->getTickerCount(BLOCK_CACHE_DATA_HIT));
+    EXPECT_EQ(4, stats->getTickerCount(BLOCK_CACHE_DATA_MISS));
 
     iter->Next();
     ASSERT_TRUE(iter->Valid());
     EXPECT_EQ("c3", iter->key().ToString());
     EXPECT_EQ("z3", iter->value().ToString());
-    EXPECT_EQ(2, stats->getTickerCount(BLOCK_CACHE_DATA_HIT));
-    EXPECT_EQ(7, stats->getTickerCount(BLOCK_CACHE_DATA_MISS));
+    EXPECT_EQ(0, stats->getTickerCount(BLOCK_CACHE_DATA_HIT));
+    EXPECT_EQ(5, stats->getTickerCount(BLOCK_CACHE_DATA_MISS));
 
     iter.reset();
 
@@ -1237,13 +1134,13 @@ TEST_P(DBIteratorTest, IndexWithFirstKey) {
     ASSERT_TRUE(iter->Valid());
     EXPECT_EQ("b2", iter->key().ToString());
     EXPECT_EQ("y2", iter->value().ToString());
-    EXPECT_EQ(3, stats->getTickerCount(BLOCK_CACHE_DATA_HIT));
-    EXPECT_EQ(7, stats->getTickerCount(BLOCK_CACHE_DATA_MISS));
+    EXPECT_EQ(1, stats->getTickerCount(BLOCK_CACHE_DATA_HIT));
+    EXPECT_EQ(5, stats->getTickerCount(BLOCK_CACHE_DATA_MISS));
 
     iter->Next();
     ASSERT_FALSE(iter->Valid());
-    EXPECT_EQ(3, stats->getTickerCount(BLOCK_CACHE_DATA_HIT));
-    EXPECT_EQ(7, stats->getTickerCount(BLOCK_CACHE_DATA_MISS));
+    EXPECT_EQ(1, stats->getTickerCount(BLOCK_CACHE_DATA_HIT));
+    EXPECT_EQ(5, stats->getTickerCount(BLOCK_CACHE_DATA_MISS));
   }
 }
 
@@ -1253,7 +1150,7 @@ TEST_P(DBIteratorTest, IndexWithFirstKeyGet) {
   options.create_if_missing = true;
   options.prefix_extractor = nullptr;
   options.merge_operator = MergeOperators::CreateStringAppendOperator();
-  options.statistics = ROCKSDB_NAMESPACE::CreateDBStatistics();
+  options.statistics = rocksdb::CreateDBStatistics();
   Statistics* stats = options.statistics.get();
   BlockBasedTableOptions table_options;
   table_options.index_type =
@@ -1371,19 +1268,19 @@ class DBIteratorTestForPinnedData : public DBIteratorTest {
 
       // Insert data to true_data map and to DB
       true_data[k] = v;
-      if (rnd.PercentTrue(merge_percentage)) {
+      if (rnd.OneIn(static_cast<int>(100.0 / merge_percentage))) {
         ASSERT_OK(db_->Merge(WriteOptions(), k, v));
       } else {
         ASSERT_OK(Put(k, v));
       }
 
       // Pick random keys to be used to test Seek()
-      if (rnd.PercentTrue(seeks_percentage)) {
+      if (rnd.OneIn(static_cast<int>(100.0 / seeks_percentage))) {
         random_keys.push_back(k);
       }
 
       // Delete some random keys
-      if (rnd.PercentTrue(delete_percentage)) {
+      if (rnd.OneIn(static_cast<int>(100.0 / delete_percentage))) {
         deleted_keys.push_back(k);
         true_data.erase(k);
         ASSERT_OK(Delete(k));
@@ -1903,7 +1800,7 @@ TEST_P(DBIteratorTest, IterPrevKeyCrossingBlocksRandomized) {
   DestroyAndReopen(options);
 
   const int kNumKeys = 500;
-  // Small number of merge operands to make sure that DBIter::Prev() don't
+  // Small number of merge operands to make sure that DBIter::Prev() dont
   // fall back to Seek()
   const int kNumMergeOperands = 3;
   // Use value size that will make sure that every block contain 1 key
@@ -1938,10 +1835,10 @@ TEST_P(DBIteratorTest, IterPrevKeyCrossingBlocksRandomized) {
   ASSERT_OK(Flush());
 
   // Separate values and merge operands in different file so that we
-  // make sure that we don't merge them while flushing but actually
+  // make sure that we dont merge them while flushing but actually
   // merge them in the read path
   for (int i = 0; i < kNumKeys; i++) {
-    if (rnd.PercentTrue(kNoMergeOpPercentage)) {
+    if (rnd.OneIn(static_cast<int>(100.0 / kNoMergeOpPercentage))) {
       // Dont give merge operations for some keys
       continue;
     }
@@ -1957,7 +1854,7 @@ TEST_P(DBIteratorTest, IterPrevKeyCrossingBlocksRandomized) {
   ASSERT_OK(Flush());
 
   for (int i = 0; i < kNumKeys; i++) {
-    if (rnd.PercentTrue(kDeletePercentage)) {
+    if (rnd.OneIn(static_cast<int>(100.0 / kDeletePercentage))) {
       gen_key = Key(i);
 
       ASSERT_OK(Delete(gen_key));
@@ -2042,7 +1939,7 @@ TEST_P(DBIteratorTest, IterPrevKeyCrossingBlocksRandomized) {
 
 TEST_P(DBIteratorTest, IteratorWithLocalStatistics) {
   Options options = CurrentOptions();
-  options.statistics = ROCKSDB_NAMESPACE::CreateDBStatistics();
+  options.statistics = rocksdb::CreateDBStatistics();
   DestroyAndReopen(options);
 
   Random rnd(301);
@@ -2140,7 +2037,7 @@ TEST_P(DBIteratorTest, ReadAhead) {
   options.env = env_;
   options.disable_auto_compactions = true;
   options.write_buffer_size = 4 << 20;
-  options.statistics = ROCKSDB_NAMESPACE::CreateDBStatistics();
+  options.statistics = rocksdb::CreateDBStatistics();
   BlockBasedTableOptions table_options;
   table_options.block_size = 1024;
   table_options.no_block_cache = true;
@@ -2218,7 +2115,7 @@ TEST_P(DBIteratorTest, DBIteratorSkipRecentDuplicatesTest) {
   options.max_sequential_skip_in_iterations = 3;
   options.prefix_extractor = nullptr;
   options.write_buffer_size = 1 << 27;  // big enough to avoid flush
-  options.statistics = ROCKSDB_NAMESPACE::CreateDBStatistics();
+  options.statistics = rocksdb::CreateDBStatistics();
   DestroyAndReopen(options);
 
   // Insert.
@@ -2510,7 +2407,7 @@ TEST_P(DBIteratorTest, UpperBoundWithPrevReseek) {
 
 TEST_P(DBIteratorTest, SkipStatistics) {
   Options options = CurrentOptions();
-  options.statistics = ROCKSDB_NAMESPACE::CreateDBStatistics();
+  options.statistics = rocksdb::CreateDBStatistics();
   DestroyAndReopen(options);
 
   int skip_count = 0;
@@ -2793,6 +2690,75 @@ TEST_P(DBIteratorTest, AvoidReseekLevelIterator) {
   SyncPoint::GetInstance()->DisableProcessing();
 }
 
+TEST_P(DBIteratorTest, AvoidReseekChildIterator) {
+  Options options = CurrentOptions();
+  options.compression = CompressionType::kNoCompression;
+  BlockBasedTableOptions table_options;
+  table_options.block_size = 800;
+  options.table_factory.reset(NewBlockBasedTableFactory(table_options));
+  Reopen(options);
+
+  Random rnd(301);
+  std::string random_str = RandomString(&rnd, 180);
+
+  ASSERT_OK(Put("1", random_str));
+  ASSERT_OK(Put("2", random_str));
+  ASSERT_OK(Put("3", random_str));
+  ASSERT_OK(Put("4", random_str));
+  ASSERT_OK(Put("8", random_str));
+  ASSERT_OK(Put("9", random_str));
+  ASSERT_OK(Flush());
+  ASSERT_OK(Put("5", random_str));
+  ASSERT_OK(Put("6", random_str));
+  ASSERT_OK(Put("7", random_str));
+  ASSERT_OK(Flush());
+
+  // These two keys will be kept in memtable.
+  ASSERT_OK(Put("0", random_str));
+  ASSERT_OK(Put("8", random_str));
+
+  int num_iter_wrapper_seek = 0;
+  SyncPoint::GetInstance()->SetCallBack(
+      "IteratorWrapper::Seek:0",
+      [&](void* /*arg*/) { num_iter_wrapper_seek++; });
+  SyncPoint::GetInstance()->EnableProcessing();
+  {
+    std::unique_ptr<Iterator> iter(NewIterator(ReadOptions()));
+    iter->Seek("1");
+    ASSERT_TRUE(iter->Valid());
+    // DBIter always wraps internal iterator with IteratorWrapper,
+    // and in merging iterator each child iterator will be wrapped
+    // with IteratorWrapper.
+    ASSERT_EQ(4, num_iter_wrapper_seek);
+
+    // child position: 1 and 5
+    num_iter_wrapper_seek = 0;
+    iter->Seek("2");
+    ASSERT_TRUE(iter->Valid());
+    ASSERT_EQ(3, num_iter_wrapper_seek);
+
+    // child position: 2 and 5
+    num_iter_wrapper_seek = 0;
+    iter->Seek("6");
+    ASSERT_TRUE(iter->Valid());
+    ASSERT_EQ(4, num_iter_wrapper_seek);
+
+    // child position: 8 and 6
+    num_iter_wrapper_seek = 0;
+    iter->Seek("7");
+    ASSERT_TRUE(iter->Valid());
+    ASSERT_EQ(3, num_iter_wrapper_seek);
+
+    // child position: 8 and 7
+    num_iter_wrapper_seek = 0;
+    iter->Seek("5");
+    ASSERT_TRUE(iter->Valid());
+    ASSERT_EQ(4, num_iter_wrapper_seek);
+  }
+
+  SyncPoint::GetInstance()->DisableProcessing();
+}
+
 // MyRocks may change iterate bounds before seek. Simply test to make sure such
 // usage doesn't break iterator.
 TEST_P(DBIteratorTest, IterateBoundChangedBeforeSeek) {
@@ -3019,10 +2985,10 @@ TEST_F(DBIteratorWithReadCallbackTest, ReadCallback) {
   delete iter;
 }
 
-}  // namespace ROCKSDB_NAMESPACE
+}  // namespace rocksdb
 
 int main(int argc, char** argv) {
-  ROCKSDB_NAMESPACE::port::InstallStackTraceHandler();
+  rocksdb::port::InstallStackTraceHandler();
   ::testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();
 }

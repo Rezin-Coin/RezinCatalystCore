@@ -13,26 +13,20 @@
 #include "rocksdb/status.h"
 #include "table/format.h"
 
-namespace ROCKSDB_NAMESPACE {
+namespace rocksdb {
 
 class PinnedIteratorsManager;
 
 struct IterateResult {
   Slice key;
   bool may_be_out_of_upper_bound;
-  // If false, PrepareValue() needs to be called before value().
-  bool value_prepared = true;
 };
 
 template <class TValue>
 class InternalIteratorBase : public Cleanable {
  public:
-  InternalIteratorBase() {}
-
-  // No copying allowed
-  InternalIteratorBase(const InternalIteratorBase&) = delete;
-  InternalIteratorBase& operator=(const InternalIteratorBase&) = delete;
-
+  InternalIteratorBase() : is_mutable_(true) {}
+  InternalIteratorBase(bool _is_mutable) : is_mutable_(_is_mutable) {}
   virtual ~InternalIteratorBase() {}
 
   // An iterator is either positioned at a key/value pair, or
@@ -54,7 +48,6 @@ class InternalIteratorBase : public Cleanable {
   // All Seek*() methods clear any error status() that the iterator had prior to
   // the call; after the seek, status() indicates only the error (if any) that
   // happened during the seek, not any past errors.
-  // 'target' contains user timestamp if timestamp is enabled.
   virtual void Seek(const Slice& target) = 0;
 
   // Position at the first key in the source that at or before target
@@ -80,7 +73,6 @@ class InternalIteratorBase : public Cleanable {
       // call. If an implementation has non-trivial MayBeOutOfUpperBound(),
       // it should also override NextAndGetResult().
       result->may_be_out_of_upper_bound = true;
-      result->value_prepared = false;
       assert(MayBeOutOfUpperBound());
     }
     return is_valid;
@@ -105,26 +97,12 @@ class InternalIteratorBase : public Cleanable {
   // the returned slice is valid only until the next modification of
   // the iterator.
   // REQUIRES: Valid()
-  // REQUIRES: PrepareValue() has been called if needed (see PrepareValue()).
   virtual TValue value() const = 0;
 
   // If an error has occurred, return it.  Else return an ok status.
   // If non-blocking IO is requested and this operation cannot be
   // satisfied without doing some IO, then this returns Status::Incomplete().
   virtual Status status() const = 0;
-
-  // For some types of iterators, sometimes Seek()/Next()/SeekForPrev()/etc may
-  // load key but not value (to avoid the IO cost of reading the value from disk
-  // if it won't be not needed). This method loads the value in such situation.
-  //
-  // Needs to be called before value() at least once after each iterator
-  // movement (except if IterateResult::value_prepared = true), for iterators
-  // created with allow_unprepared_value = true.
-  //
-  // Returns false if an error occurred; in this case Valid() is also changed
-  // to false, and status() is changed to non-ok.
-  // REQUIRES: Valid()
-  virtual bool PrepareValue() { return true; }
 
   // True if the iterator is invalidated because it reached a key that is above
   // the iterator upper bound. Used by LevelIterator to decide whether it should
@@ -140,7 +118,7 @@ class InternalIteratorBase : public Cleanable {
   // iterate_upper_bound.
   virtual bool MayBeOutOfUpperBound() { return true; }
 
-  // Pass the PinnedIteratorsManager to the Iterator, most Iterators don't
+  // Pass the PinnedIteratorsManager to the Iterator, most Iterators dont
   // communicate with PinnedIteratorsManager so default implementation is no-op
   // but for Iterators that need to communicate with PinnedIteratorsManager
   // they will implement this function and use the passed pointer to communicate
@@ -161,12 +139,12 @@ class InternalIteratorBase : public Cleanable {
   // If true, this means that the Slice returned by value() is valid as long as
   // PinnedIteratorsManager::ReleasePinnedData is not called and the
   // Iterator is not deleted.
-  // REQUIRES: Same as for value().
   virtual bool IsValuePinned() const { return false; }
 
   virtual Status GetProperty(std::string /*prop_name*/, std::string* /*prop*/) {
     return Status::NotSupported("");
   }
+  bool is_mutable() const { return is_mutable_; }
 
  protected:
   void SeekForPrevImpl(const Slice& target, const Comparator* cmp) {
@@ -178,8 +156,12 @@ class InternalIteratorBase : public Cleanable {
       Prev();
     }
   }
-
   bool is_mutable_;
+
+ private:
+  // No copying allowed
+  InternalIteratorBase(const InternalIteratorBase&) = delete;
+  InternalIteratorBase& operator=(const InternalIteratorBase&) = delete;
 };
 
 using InternalIterator = InternalIteratorBase<Slice>;
@@ -198,4 +180,4 @@ template <class TValue = Slice>
 extern InternalIteratorBase<TValue>* NewErrorInternalIterator(
     const Status& status, Arena* arena);
 
-}  // namespace ROCKSDB_NAMESPACE
+}  // namespace rocksdb

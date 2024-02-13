@@ -84,18 +84,15 @@ template<typename T> class ThreadSafeQueue
 
         /* Wait for data to become available (releases the lock whilst
            it's not, so we don't block the producer) */
-        m_haveData.wait(
-            lock,
-            [&]
+        m_haveData.wait(lock, [&] {
+            /* Stopping, don't block */
+            if (m_shouldStop)
             {
-                /* Stopping, don't block */
-                if (m_shouldStop)
-                {
-                    return true;
-                }
+                return true;
+            }
 
-                return !m_queue.empty();
-            });
+            return !m_queue.empty();
+        });
 
         /* Stopping, don't return data */
         if (m_shouldStop)

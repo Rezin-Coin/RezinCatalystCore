@@ -18,7 +18,7 @@
 #include "rocksdb/status.h"
 #include "rocksdb/types.h"
 
-namespace ROCKSDB_NAMESPACE {
+namespace rocksdb {
 namespace blob_db {
 
 constexpr uint32_t kMagicNumber = 2395959;  // 0x00248f37
@@ -43,19 +43,11 @@ using ExpirationRange = std::pair<uint64_t, uint64_t>;
 struct BlobLogHeader {
   static constexpr size_t kSize = 30;
 
-  BlobLogHeader() = default;
-  BlobLogHeader(uint32_t _column_family_id, CompressionType _compression,
-                bool _has_ttl, const ExpirationRange& _expiration_range)
-      : column_family_id(_column_family_id),
-        compression(_compression),
-        has_ttl(_has_ttl),
-        expiration_range(_expiration_range) {}
-
   uint32_t version = kVersion1;
   uint32_t column_family_id = 0;
   CompressionType compression = kNoCompression;
   bool has_ttl = false;
-  ExpirationRange expiration_range;
+  ExpirationRange expiration_range = std::make_pair(0, 0);
 
   void EncodeTo(std::string* dst);
 
@@ -129,5 +121,5 @@ struct BlobLogRecord {
 };
 
 }  // namespace blob_db
-}  // namespace ROCKSDB_NAMESPACE
+}  // namespace rocksdb
 #endif  // ROCKSDB_LITE

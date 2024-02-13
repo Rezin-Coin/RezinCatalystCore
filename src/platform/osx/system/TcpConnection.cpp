@@ -105,8 +105,7 @@ namespace System
                 else
                 {
                     readContext = &context;
-                    dispatcher->getCurrentContext()->interruptProcedure = [&]
-                    {
+                    dispatcher->getCurrentContext()->interruptProcedure = [&] {
                         assert(dispatcher != nullptr);
                         assert(readContext != nullptr);
                         OperationContext *context = static_cast<OperationContext *>(readContext);
@@ -199,8 +198,7 @@ namespace System
                 else
                 {
                     writeContext = &context;
-                    dispatcher->getCurrentContext()->interruptProcedure = [&]
-                    {
+                    dispatcher->getCurrentContext()->interruptProcedure = [&] {
                         assert(dispatcher != nullptr);
                         assert(writeContext != nullptr);
                         OperationContext *context = static_cast<OperationContext *>(writeContext);
@@ -265,7 +263,10 @@ namespace System
     }
 
     TcpConnection::TcpConnection(Dispatcher &dispatcher, int socket):
-        dispatcher(&dispatcher), connection(socket), readContext(nullptr), writeContext(nullptr)
+        dispatcher(&dispatcher),
+        connection(socket),
+        readContext(nullptr),
+        writeContext(nullptr)
     {
         int val = 1;
         if (setsockopt(connection, SOL_SOCKET, SO_NOSIGPIPE, (void *)&val, sizeof val) == -1)

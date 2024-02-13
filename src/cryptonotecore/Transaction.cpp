@@ -393,10 +393,9 @@ namespace CryptoNote
     uint64_t TransactionImpl::getInputTotalAmount() const
     {
         return std::accumulate(
-            transaction.inputs.begin(),
-            transaction.inputs.end(),
-            0ULL,
-            [](uint64_t val, const TransactionInput &in) { return val + getTransactionInputAmount(in); });
+            transaction.inputs.begin(), transaction.inputs.end(), 0ULL, [](uint64_t val, const TransactionInput &in) {
+                return val + getTransactionInputAmount(in);
+            });
     }
 
     TransactionTypes::InputType TransactionImpl::getInputType(size_t index) const

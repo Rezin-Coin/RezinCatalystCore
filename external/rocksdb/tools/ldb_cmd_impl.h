@@ -12,7 +12,7 @@
 #include <utility>
 #include <vector>
 
-namespace ROCKSDB_NAMESPACE {
+namespace rocksdb {
 
 class CompactorCommand : public LDBCommand {
  public:
@@ -171,25 +171,6 @@ class ManifestDumpCommand : public LDBCommand {
   static const std::string ARG_PATH;
 };
 
-class FileChecksumDumpCommand : public LDBCommand {
- public:
-  static std::string Name() { return "file_checksum_dump"; }
-
-  FileChecksumDumpCommand(const std::vector<std::string>& params,
-                          const std::map<std::string, std::string>& options,
-                          const std::vector<std::string>& flags);
-
-  static void Help(std::string& ret);
-  void DoCommand() override;
-
-  bool NoDBOpen() override { return true; }
-
- private:
-  std::string path_;
-
-  static const std::string ARG_PATH;
-};
-
 class ListColumnFamiliesCommand : public LDBCommand {
  public:
   static std::string Name() { return "list_column_families"; }
@@ -202,6 +183,9 @@ class ListColumnFamiliesCommand : public LDBCommand {
   virtual void DoCommand() override;
 
   virtual bool NoDBOpen() override { return true; }
+
+ private:
+  std::string dbname_;
 };
 
 class CreateColumnFamilyCommand : public LDBCommand {
@@ -526,7 +510,6 @@ class BackupableCommand : public LDBCommand {
   std::string backup_dir_;
   int num_threads_;
   std::unique_ptr<Logger> logger_;
-  std::shared_ptr<Env> backup_env_guard_;
 
  private:
   static const std::string ARG_BACKUP_DIR;
@@ -625,4 +608,4 @@ class ListFileRangeDeletesCommand : public LDBCommand {
   int max_keys_ = 1000;
 };
 
-}  // namespace ROCKSDB_NAMESPACE
+}  // namespace rocksdb

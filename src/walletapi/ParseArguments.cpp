@@ -13,7 +13,6 @@
 #include <config/CryptoNoteConfig.h>
 #include <config/WalletConfig.h>
 #include <cxxopts.hpp>
-#include <fstream>
 #include <thread>
 
 ApiConfig parseArguments(int argc, char **argv)
@@ -28,9 +27,6 @@ ApiConfig parseArguments(int argc, char **argv)
 
     unsigned int threads;
 
-    std::string logFilePath;
-
-    // clang-format off
     options.add_options("Core")(
         "h,help", "Display this help message", cxxopts::value<bool>(help)->implicit_value("true"))
 
@@ -38,11 +34,6 @@ ApiConfig parseArguments(int argc, char **argv)
          "Specify log level",
          cxxopts::value<int>(logLevel)->default_value(std::to_string(config.logLevel)),
          "#")
-
-        ("log-file",
-         "Specify filepath to log to. Logging to file is disabled by default",
-         cxxopts::value<std::string>(logFilePath),
-         "<file>")
 
         ("no-console",
          "If set, will not provide an interactive console",
@@ -83,7 +74,6 @@ ApiConfig parseArguments(int argc, char **argv)
          "Specify the <password> to access the RPC server.",
          cxxopts::value<std::string>(config.rpcPassword),
          "<password>");
-    // clang-format on
 
     try
     {
@@ -123,22 +113,6 @@ ApiConfig parseArguments(int argc, char **argv)
     else
     {
         config.logLevel = static_cast<Logger::LogLevel>(logLevel);
-    }
-
-    if (logFilePath != "")
-    {
-        config.loggingFilePath = logFilePath;
-
-        std::ofstream logFile(logFilePath, std::ios_base::app);
-
-        if (!logFile)
-        {
-            std::cout << "Failed to open log file. Please ensure you specified "
-                      << "a valid filepath and have permissions to create files "
-                      << "in this directory. Error: " << strerror(errno) << std::endl;
-
-            exit(1);
-        }
     }
 
     if (noConsole)

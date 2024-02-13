@@ -15,7 +15,7 @@
 #include "logging/log_buffer.h"
 #include "test_util/sync_point.h"
 
-namespace ROCKSDB_NAMESPACE {
+namespace rocksdb {
 
 bool LevelCompactionPicker::NeedsCompaction(
     const VersionStorageInfo* vstorage) const {
@@ -45,14 +45,12 @@ class LevelCompactionBuilder {
  public:
   LevelCompactionBuilder(const std::string& cf_name,
                          VersionStorageInfo* vstorage,
-                         SequenceNumber earliest_mem_seqno,
                          CompactionPicker* compaction_picker,
                          LogBuffer* log_buffer,
                          const MutableCFOptions& mutable_cf_options,
                          const ImmutableCFOptions& ioptions)
       : cf_name_(cf_name),
         vstorage_(vstorage),
-        earliest_mem_seqno_(earliest_mem_seqno),
         compaction_picker_(compaction_picker),
         log_buffer_(log_buffer),
         mutable_cf_options_(mutable_cf_options),
@@ -99,7 +97,6 @@ class LevelCompactionBuilder {
 
   const std::string& cf_name_;
   VersionStorageInfo* vstorage_;
-  SequenceNumber earliest_mem_seqno_;
   CompactionPicker* compaction_picker_;
   LogBuffer* log_buffer_;
   int start_level_ = -1;
@@ -250,6 +247,7 @@ void LevelCompactionBuilder::SetupInitialFiles() {
         cf_name_, vstorage_, &start_level_, &output_level_,
         &start_level_inputs_);
     if (!start_level_inputs_.empty()) {
+      is_manual_ = true;
       compaction_reason_ = CompactionReason::kFilesMarkedForCompaction;
       return;
     }
@@ -383,7 +381,7 @@ Compaction* LevelCompactionBuilder::GetCompaction() {
       GetPathId(ioptions_, mutable_cf_options_, output_level_),
       GetCompressionType(ioptions_, vstorage_, mutable_cf_options_,
                          output_level_, vstorage_->base_level()),
-      GetCompressionOptions(mutable_cf_options_, vstorage_, output_level_),
+      GetCompressionOptions(ioptions_, vstorage_, output_level_),
       /* max_subcompactions */ 0, std::move(grandparents_), is_manual_,
       start_level_score_, false /* deletion_compaction */, compaction_reason_);
 
@@ -539,19 +537,17 @@ bool LevelCompactionBuilder::PickIntraL0Compaction() {
     // resort to L0->L0 compaction yet.
     return false;
   }
-  return FindIntraL0Compaction(level_files, kMinFilesForIntraL0Compaction,
-                               port::kMaxUint64,
-                               mutable_cf_options_.max_compaction_bytes,
-                               &start_level_inputs_, earliest_mem_seqno_);
+  return FindIntraL0Compaction(
+      level_files, kMinFilesForIntraL0Compaction, port::kMaxUint64,
+      mutable_cf_options_.max_compaction_bytes, &start_level_inputs_);
 }
 }  // namespace
 
 Compaction* LevelCompactionPicker::PickCompaction(
     const std::string& cf_name, const MutableCFOptions& mutable_cf_options,
-    VersionStorageInfo* vstorage, LogBuffer* log_buffer,
-    SequenceNumber earliest_mem_seqno) {
-  LevelCompactionBuilder builder(cf_name, vstorage, earliest_mem_seqno, this,
-                                 log_buffer, mutable_cf_options, ioptions_);
+    VersionStorageInfo* vstorage, LogBuffer* log_buffer) {
+  LevelCompactionBuilder builder(cf_name, vstorage, this, log_buffer,
+                                 mutable_cf_options, ioptions_);
   return builder.PickCompaction();
 }
-}  // namespace ROCKSDB_NAMESPACE
+}  // namespace rocksdb

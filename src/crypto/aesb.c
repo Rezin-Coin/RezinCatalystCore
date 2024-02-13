@@ -64,26 +64,11 @@ extern "C"
 #define to_byte(x) ((x)&0xff)
 #define bval(x, n) to_byte((x) >> (8 * (n)))
 
-#define fwd_var(x, r, c)        \
-    (r == 0                     \
-         ? (c == 0   ? s(x, 0)  \
-            : c == 1 ? s(x, 1)  \
-            : c == 2 ? s(x, 2)  \
-                     : s(x, 3)) \
-     : r == 1                   \
-         ? (c == 0   ? s(x, 1)  \
-            : c == 1 ? s(x, 2)  \
-            : c == 2 ? s(x, 3)  \
-                     : s(x, 0)) \
-     : r == 2                   \
-         ? (c == 0   ? s(x, 2)  \
-            : c == 1 ? s(x, 3)  \
-            : c == 2 ? s(x, 0)  \
-                     : s(x, 1)) \
-         : (c == 0   ? s(x, 3)  \
-            : c == 1 ? s(x, 0)  \
-            : c == 2 ? s(x, 1)  \
-                     : s(x, 2)))
+#define fwd_var(x, r, c)                                                                           \
+    (r == 0 ? (c == 0 ? s(x, 0) : c == 1 ? s(x, 1) : c == 2 ? s(x, 2) : s(x, 3))                   \
+            : r == 1 ? (c == 0 ? s(x, 1) : c == 1 ? s(x, 2) : c == 2 ? s(x, 3) : s(x, 0))          \
+                     : r == 2 ? (c == 0 ? s(x, 2) : c == 1 ? s(x, 3) : c == 2 ? s(x, 0) : s(x, 1)) \
+                              : (c == 0 ? s(x, 3) : c == 1 ? s(x, 0) : c == 2 ? s(x, 1) : s(x, 2)))
 
 #define fwd_rnd(y, x, k, c) (s(y, c) = (k)[c] ^ four_tables(x, t_use(f, n), fwd_var, rf1, c))
 

@@ -10,7 +10,7 @@
 #include "port/port.h"
 #include "test_util/testharness.h"
 
-namespace ROCKSDB_NAMESPACE {
+namespace rocksdb {
 
 class LRUCacheTest : public testing::Test {
  public:
@@ -31,8 +31,7 @@ class LRUCacheTest : public testing::Test {
     cache_ = reinterpret_cast<LRUCacheShard*>(
         port::cacheline_aligned_alloc(sizeof(LRUCacheShard)));
     new (cache_) LRUCacheShard(capacity, false /*strict_capcity_limit*/,
-                               high_pri_pool_ratio, use_adaptive_mutex,
-                               kDontChargeCacheMetadata);
+                               high_pri_pool_ratio, use_adaptive_mutex);
   }
 
   void Insert(const std::string& key,
@@ -190,7 +189,7 @@ TEST_F(LRUCacheTest, EntriesWithPriority) {
   ValidateLRUList({"e", "f", "g", "Z", "d"}, 2);
 }
 
-}  // namespace ROCKSDB_NAMESPACE
+}  // namespace rocksdb
 
 int main(int argc, char** argv) {
   ::testing::InitGoogleTest(&argc, argv);

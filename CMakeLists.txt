@@ -13,8 +13,9 @@ else ()
     set (CMAKE_BUILD_TYPE Release CACHE STRING "Choose the type of build, options are: Debug, Release, RelWithDebInfo")
 endif ()
 
-set(CMAKE_CONFIGURATION_TYPES Debug RelWithDebInfo Release CACHE TYPE STRING INTERNAL)
+set(CMAKE_CONFIGURATION_TYPES Debug RelWithDebInfo Release CACHE TYPE INTERNAL)
 set(ARCH native CACHE STRING "CPU to build for: -march value or native")
+set(WITH_LEVELDB OFF CACHE STRING "Enable LevelDB")
 
 project(RezinCatalystCore)
 
@@ -64,8 +65,8 @@ set(NO_AES OFF CACHE BOOL "Turn off Hardware AES instructions?")
 set(NO_OPTIMIZED_MULTIPLY_ON_ARM OFF CACHE BOOL "Turn off Optimized Multiplication on ARM?")
 
 ## This section defines a few parameters that we open up for use with RocksDB
-set(WITH_LZ4 ON)
-set(WITH_ZTD ON)
+set(WITH_ZSTD ON CACHE STRING "Enable zstd compression")
+set(WITH_LZ4 ON CACHE STRING "Enable lz4 compression")
 
 message(STATUS "Building for target architecture: ${ARCH}")
 
@@ -88,6 +89,14 @@ if (NO_OPTIMIZED_MULTIPLY_ON_ARM)
     message(STATUS "OPTIMIZED_ARM_MULTIPLICATION: DISABLED")
 else ()
     message(STATUS "OPTIMIZED_ARM_MULTIPLICATION: ENABLED")
+endif ()
+
+if (WITH_LEVELDB)
+    add_definitions(-DUSE_LEVELDB)
+endif ()
+
+if ((WITH_ZSTD) AND (NOT WITH_LEVELDB))
+    add_definitions(-DENABLE_ZSTD_COMPRESSION)
 endif ()
 
 # We need to set the label and import it into CMake if it exists
@@ -305,13 +314,15 @@ add_subdirectory(src)
 
 ## We need to setup the RocksDB build environment to match our system
 if (NOT MSVC)
-    execute_process(
-         COMMAND ${CMAKE_COMMAND} ${CMAKE_CURRENT_SOURCE_DIR}/external/leveldb -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE} -DLEVELDB_BUILD_TESTS=OFF -DLEVELDB_BUILD_BENCHMARKS=OFF -DLEVELDB_INSTALL=OFF -B${PROJECT_BINARY_DIR}/leveldb
-    )
-    set_directory_properties(PROPERTIES ADDITIONAL_MAKE_CLEAN_FILES "${PROJECT_BINARY_DIR}/leveldb/libleveldb.a")
-
-    execute_process(
-        COMMAND ${CMAKE_COMMAND} ${CMAKE_CURRENT_SOURCE_DIR}/external/rocksdb -DARCH=${ARCH} -DWITH_ZSTD=ON -DWITH_LZ4=ON -DWITH_GFLAGS=0 -DCMAKE_BUILD_TYPE=MinSizeRel -DWITH_TESTS=OFF -DWITH_TOOLS=OFF -DPORTABLE=ON -B${PROJECT_BINARY_DIR}/rocksdb
-    )
-    set_directory_properties(PROPERTIES ADDITIONAL_MAKE_CLEAN_FILES "${PROJECT_BINARY_DIR}/rocksdb/librocksdb.a")
+    if (WITH_LEVELDB)
+        execute_process(
+            COMMAND ${CMAKE_COMMAND} ${CMAKE_CURRENT_SOURCE_DIR}/external/leveldb -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE} -DLEVELDB_BUILD_TESTS=OFF -DLEVELDB_BUILD_BENCHMARKS=OFF -DLEVELDB_INSTALL=OFF -B${PROJECT_BINARY_DIR}/leveldb
+        )
+        set_directory_properties(PROPERTIES ADDITIONAL_MAKE_CLEAN_FILES "${PROJECT_BINARY_DIR}/leveldb/libleveldb.a")
+    else ()
+        execute_process(
+            COMMAND ${CMAKE_COMMAND} ${CMAKE_CURRENT_SOURCE_DIR}/external/rocksdb -DARCH=${ARCH} -DWITH_ZSTD=${WITH_ZSTD} -DWITH_GFLAGS=0 -DCMAKE_BUILD_TYPE=MinSizeRel -DWITH_TESTS=OFF -DWITH_TOOLS=OFF -DPORTABLE=ON -B${PROJECT_BINARY_DIR}/rocksdb
+        )
+        set_directory_properties(PROPERTIES ADDITIONAL_MAKE_CLEAN_FILES "${PROJECT_BINARY_DIR}/rocksdb/librocksdb.a")
+    endif ()
 endif ()

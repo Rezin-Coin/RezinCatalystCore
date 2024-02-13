@@ -209,7 +209,7 @@ public class TransactionTest extends AbstractTransactionTest {
             .isSameAs(Transaction.TransactionState.STARTED);
         txn.commit();
         assertThat(txn.getState())
-            .isSameAs(Transaction.TransactionState.COMMITTED);
+            .isSameAs(Transaction.TransactionState.COMMITED);
       }
 
       try(final Transaction txn = dbContainer.beginTransaction()) {

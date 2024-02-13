@@ -154,10 +154,9 @@ namespace CryptoNote
     uint64_t TransactionPrefixImpl::getInputTotalAmount() const
     {
         return std::accumulate(
-            m_txPrefix.inputs.begin(),
-            m_txPrefix.inputs.end(),
-            0ULL,
-            [](uint64_t val, const TransactionInput &in) { return val + getTransactionInputAmount(in); });
+            m_txPrefix.inputs.begin(), m_txPrefix.inputs.end(), 0ULL, [](uint64_t val, const TransactionInput &in) {
+                return val + getTransactionInputAmount(in);
+            });
     }
 
     TransactionTypes::InputType TransactionPrefixImpl::getInputType(size_t index) const
@@ -178,10 +177,9 @@ namespace CryptoNote
     uint64_t TransactionPrefixImpl::getOutputTotalAmount() const
     {
         return std::accumulate(
-            m_txPrefix.outputs.begin(),
-            m_txPrefix.outputs.end(),
-            0ULL,
-            [](uint64_t val, const TransactionOutput &out) { return val + out.amount; });
+            m_txPrefix.outputs.begin(), m_txPrefix.outputs.end(), 0ULL, [](uint64_t val, const TransactionOutput &out) {
+                return val + out.amount;
+            });
     }
 
     TransactionTypes::OutputType TransactionPrefixImpl::getOutputType(size_t index) const

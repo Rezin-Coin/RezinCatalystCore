@@ -12,21 +12,12 @@
 #include "rocksdb/env_encryption.h"
 #include "rocksdb/utilities/object_registry.h"
 
-namespace ROCKSDB_NAMESPACE {
-
-namespace {
-int64_t MaybeCurrentTime(Env* env) {
-  int64_t time = 1337346000;  // arbitrary fallback default
-  (void)env->GetCurrentTime(&time);
-  return time;
-}
-}  // namespace
+namespace rocksdb {
 
 // Special Env used to delay background operations
 
 SpecialEnv::SpecialEnv(Env* base)
     : EnvWrapper(base),
-      maybe_starting_time_(MaybeCurrentTime(base)),
       rnd_(301),
       sleep_counter_(this),
       addon_time_(0),
@@ -57,14 +48,16 @@ ROT13BlockCipher rot13Cipher_(16);
 #endif  // ROCKSDB_LITE
 
 DBTestBase::DBTestBase(const std::string path)
-    : mem_env_(nullptr), encrypted_env_(nullptr), option_config_(kDefault) {
+    : mem_env_(nullptr),
+      encrypted_env_(nullptr),
+      option_config_(kDefault) {
   Env* base_env = Env::Default();
 #ifndef ROCKSDB_LITE
   const char* test_env_uri = getenv("TEST_ENV_URI");
   if (test_env_uri) {
-    Env* test_env = nullptr;
-    Status s = Env::LoadEnv(test_env_uri, &test_env, &env_guard_);
-    base_env = test_env;
+    Status s = ObjectRegistry::NewInstance()->NewSharedObject(test_env_uri,
+                                                              &env_guard_);
+    base_env = env_guard_.get();
     EXPECT_OK(s);
     EXPECT_NE(Env::Default(), base_env);
   }
@@ -99,9 +92,9 @@ DBTestBase::DBTestBase(const std::string path)
 }
 
 DBTestBase::~DBTestBase() {
-  ROCKSDB_NAMESPACE::SyncPoint::GetInstance()->DisableProcessing();
-  ROCKSDB_NAMESPACE::SyncPoint::GetInstance()->LoadDependency({});
-  ROCKSDB_NAMESPACE::SyncPoint::GetInstance()->ClearAllCallBacks();
+  rocksdb::SyncPoint::GetInstance()->DisableProcessing();
+  rocksdb::SyncPoint::GetInstance()->LoadDependency({});
+  rocksdb::SyncPoint::GetInstance()->ClearAllCallBacks();
   Close();
   Options options;
   options.db_paths.emplace_back(dbname_, 0);
@@ -349,10 +342,9 @@ Options DBTestBase::GetOptions(
   bool set_block_based_table_factory = true;
 #if !defined(OS_MACOSX) && !defined(OS_WIN) && !defined(OS_SOLARIS) && \
     !defined(OS_AIX)
-  ROCKSDB_NAMESPACE::SyncPoint::GetInstance()->ClearCallBack(
+  rocksdb::SyncPoint::GetInstance()->ClearCallBack(
       "NewRandomAccessFile:O_DIRECT");
-  ROCKSDB_NAMESPACE::SyncPoint::GetInstance()->ClearCallBack(
-      "NewWritableFile:O_DIRECT");
+  rocksdb::SyncPoint::GetInstance()->ClearCallBack("NewWritableFile:O_DIRECT");
 #endif
 
   bool can_allow_mmap = IsMemoryMappedAccessSupported();
@@ -408,7 +400,20 @@ Options DBTestBase::GetOptions(
         options.use_direct_reads = true;
         options.use_direct_io_for_flush_and_compaction = true;
         options.compaction_readahead_size = 2 * 1024 * 1024;
-        test::SetupSyncPointsToMockDirectIO();
+  #if !defined(OS_MACOSX) && !defined(OS_WIN) && !defined(OS_SOLARIS) && \
+      !defined(OS_AIX) && !defined(OS_OPENBSD)
+        rocksdb::SyncPoint::GetInstance()->SetCallBack(
+            "NewWritableFile:O_DIRECT", [&](void* arg) {
+              int* val = static_cast<int*>(arg);
+              *val &= ~O_DIRECT;
+            });
+        rocksdb::SyncPoint::GetInstance()->SetCallBack(
+            "NewRandomAccessFile:O_DIRECT", [&](void* arg) {
+              int* val = static_cast<int*>(arg);
+              *val &= ~O_DIRECT;
+            });
+        rocksdb::SyncPoint::GetInstance()->EnableProcessing();
+  #endif
         break;
       }
 #endif  // ROCKSDB_LITE
@@ -581,8 +586,7 @@ void DBTestBase::CreateColumnFamilies(const std::vector<std::string>& cfs,
   size_t cfi = handles_.size();
   handles_.resize(cfi + cfs.size());
   for (auto cf : cfs) {
-    Status s = db_->CreateColumnFamily(cf_opts, cf, &handles_[cfi++]);
-    ASSERT_OK(s);
+    ASSERT_OK(db_->CreateColumnFamily(cf_opts, cf, &handles_[cfi++]));
   }
 }
 
@@ -774,8 +778,7 @@ std::string DBTestBase::Get(int cf, const std::string& k,
 
 std::vector<std::string> DBTestBase::MultiGet(std::vector<int> cfs,
                                               const std::vector<std::string>& k,
-                                              const Snapshot* snapshot,
-                                              const bool batched) {
+                                              const Snapshot* snapshot) {
   ReadOptions options;
   options.verify_checksums = true;
   options.snapshot = snapshot;
@@ -787,30 +790,12 @@ std::vector<std::string> DBTestBase::MultiGet(std::vector<int> cfs,
     handles.push_back(handles_[cfs[i]]);
     keys.push_back(k[i]);
   }
-  std::vector<Status> s;
-  if (!batched) {
-    s = db_->MultiGet(options, handles, keys, &result);
-    for (unsigned int i = 0; i < s.size(); ++i) {
-      if (s[i].IsNotFound()) {
-        result[i] = "NOT_FOUND";
-      } else if (!s[i].ok()) {
-        result[i] = s[i].ToString();
-      }
-    }
-  } else {
-    std::vector<PinnableSlice> pin_values(cfs.size());
-    result.resize(cfs.size());
-    s.resize(cfs.size());
-    db_->MultiGet(options, cfs.size(), handles.data(), keys.data(),
-                  pin_values.data(), s.data());
-    for (unsigned int i = 0; i < s.size(); ++i) {
-      if (s[i].IsNotFound()) {
-        result[i] = "NOT_FOUND";
-      } else if (!s[i].ok()) {
-        result[i] = s[i].ToString();
-      } else {
-        result[i].assign(pin_values[i].data(), pin_values[i].size());
-      }
+  std::vector<Status> s = db_->MultiGet(options, handles, keys, &result);
+  for (unsigned int i = 0; i < s.size(); ++i) {
+    if (s[i].IsNotFound()) {
+      result[i] = "NOT_FOUND";
+    } else if (!s[i].ok()) {
+      result[i] = s[i].ToString();
     }
   }
   return result;
@@ -861,13 +846,6 @@ uint64_t DBTestBase::GetTimeOldestSnapshots() {
   uint64_t int_num;
   EXPECT_TRUE(
       dbfull()->GetIntProperty("rocksdb.oldest-snapshot-time", &int_num));
-  return int_num;
-}
-
-uint64_t DBTestBase::GetSequenceOldestSnapshots() {
-  uint64_t int_num;
-  EXPECT_TRUE(
-      dbfull()->GetIntProperty("rocksdb.oldest-snapshot-sequence", &int_num));
   return int_num;
 }
 
@@ -1557,4 +1535,4 @@ uint64_t DBTestBase::GetNumberOfSstFilesForColumnFamily(
 }
 #endif  // ROCKSDB_LITE
 
-}  // namespace ROCKSDB_NAMESPACE
+}  // namespace rocksdb

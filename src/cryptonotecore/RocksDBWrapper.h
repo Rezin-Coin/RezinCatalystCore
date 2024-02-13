@@ -5,6 +5,7 @@
 
 #pragma once
 
+#include "DataBaseConfig.h"
 #include "IDataBase.h"
 #include "rocksdb/db.h"
 
@@ -30,11 +31,11 @@ namespace CryptoNote
 
         RocksDBWrapper &operator=(RocksDBWrapper &&) = delete;
 
-        void init(const DataBaseConfig &config) override;
+        void init(const DataBaseConfig &config);
 
-        void shutdown() override;
+        void shutdown();
 
-        void destroy(const DataBaseConfig &config) override; // Be careful with this method!
+        void destroy(const DataBaseConfig &config); // Be careful with this method!
 
         std::error_code write(IWriteBatch &batch) override;
 

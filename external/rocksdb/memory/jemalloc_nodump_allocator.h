@@ -11,6 +11,7 @@
 #include "port/jemalloc_helper.h"
 #include "port/port.h"
 #include "rocksdb/memory_allocator.h"
+#include "util/core_local.h"
 #include "util/thread_local.h"
 
 #if defined(ROCKSDB_JEMALLOC) && defined(ROCKSDB_PLATFORM_POSIX)
@@ -20,7 +21,7 @@
 #if (JEMALLOC_VERSION_MAJOR >= 5) && defined(MADV_DONTDUMP)
 #define ROCKSDB_JEMALLOC_NODUMP_ALLOCATOR
 
-namespace ROCKSDB_NAMESPACE {
+namespace rocksdb {
 
 class JemallocNodumpAllocator : public MemoryAllocator {
  public:
@@ -73,6 +74,6 @@ class JemallocNodumpAllocator : public MemoryAllocator {
   ThreadLocalPtr tcache_;
 };
 
-}  // namespace ROCKSDB_NAMESPACE
+}  // namespace rocksdb
 #endif  // (JEMALLOC_VERSION_MAJOR >= 5) && MADV_DONTDUMP
 #endif  // ROCKSDB_JEMALLOC && ROCKSDB_PLATFORM_POSIX

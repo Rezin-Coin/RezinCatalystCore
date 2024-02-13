@@ -120,8 +120,7 @@ namespace System
                             else
                             {
                                 context = &connectorContext;
-                                dispatcher->getCurrentContext()->interruptProcedure = [&]
-                                {
+                                dispatcher->getCurrentContext()->interruptProcedure = [&] {
                                     TcpConnectorContextExt *connectorContext1 =
                                         static_cast<TcpConnectorContextExt *>(context);
                                     if (!connectorContext1->interrupted)

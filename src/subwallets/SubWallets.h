@@ -81,7 +81,9 @@ class SubWallets
 
     /* Determine if the input is in the spendable container and is unlocked
      * at this height. */
-    bool haveSpendableInput(const WalletTypes::TransactionInput &input, const uint64_t height) const;
+    bool haveSpendableInput(
+        const WalletTypes::TransactionInput& input,
+        const uint64_t height) const;
 
     /* Get key images + amounts for the specified transfer amount. We
        can either take from all subwallets, or from some subset
@@ -95,8 +97,7 @@ class SubWallets
         const bool takeFromAll,
         std::vector<Crypto::PublicKey> subWalletsToTakeFrom,
         const uint64_t mixin,
-        const uint64_t height,
-        const std::optional<uint64_t> optimizeTarget) const;
+        const uint64_t height) const;
 
     /* Get the owner of the key image, if any */
     std::tuple<bool, Crypto::PublicKey> getKeyImageOwner(const Crypto::KeyImage keyImage) const;
@@ -144,7 +145,6 @@ class SubWallets
     bool isViewWallet() const;
 
     void reset(const uint64_t scanHeight);
-    void rewind(const uint64_t scanHeight);
 
     std::vector<WalletTypes::Transaction> getTransactions() const;
 

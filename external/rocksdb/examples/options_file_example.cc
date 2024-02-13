@@ -18,7 +18,7 @@
 #include "rocksdb/table.h"
 #include "rocksdb/utilities/options_util.h"
 
-using namespace ROCKSDB_NAMESPACE;
+using namespace rocksdb;
 
 std::string kDBPath = "/tmp/rocksdb_options_file_example";
 
@@ -79,8 +79,7 @@ int main() {
   // Load the options file.
   DBOptions loaded_db_opt;
   std::vector<ColumnFamilyDescriptor> loaded_cf_descs;
-  ConfigOptions config_options;
-  s = LoadLatestOptions(config_options, kDBPath, &loaded_db_opt,
+  s = LoadLatestOptions(kDBPath, Env::Default(), &loaded_db_opt,
                         &loaded_cf_descs);
   assert(s.ok());
   assert(loaded_db_opt.create_if_missing == db_opt.create_if_missing);

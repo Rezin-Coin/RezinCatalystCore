@@ -19,20 +19,18 @@ namespace System
         std::condition_variable condition;
         bool locked = false;
 
-        dispatcher.remoteSpawn(
-            [&]()
+        dispatcher.remoteSpawn([&]() {
+            while (!event.get())
             {
-                while (!event.get())
-                {
-                    event.wait();
-                }
+                event.wait();
+            }
 
-                event.clear();
-                mutex.lock();
-                locked = true;
-                condition.notify_one();
-                mutex.unlock();
-            });
+            event.clear();
+            mutex.lock();
+            locked = true;
+            condition.notify_one();
+            mutex.unlock();
+        });
 
         std::unique_lock<std::mutex> lock(mutex);
         while (!locked)
@@ -48,17 +46,15 @@ namespace System
         bool locked = true;
 
         Event *eventPointer = &event;
-        dispatcher.remoteSpawn(
-            [&]()
-            {
-                assert(!eventPointer->get());
-                eventPointer->set();
+        dispatcher.remoteSpawn([&]() {
+            assert(!eventPointer->get());
+            eventPointer->set();
 
-                mutex.lock();
-                locked = false;
-                condition.notify_one();
-                mutex.unlock();
-            });
+            mutex.lock();
+            locked = false;
+            condition.notify_one();
+            mutex.unlock();
+        });
 
         std::unique_lock<std::mutex> lock(mutex);
         while (locked)

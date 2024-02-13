@@ -53,10 +53,9 @@ LIBUNWIND="$LIBUNWIND_BASE/lib/libunwind.a"
 TBB_INCLUDE=" -isystem $TBB_BASE/include/"
 TBB_LIBS="$TBB_BASE/lib/libtbb.a"
 
-test "$USE_SSE" || USE_SSE=1
-export USE_SSE
-test "$PORTABLE" || PORTABLE=1
-export PORTABLE
+# use Intel SSE support for checksum calculations
+export USE_SSE=1
+export PORTABLE=1
 
 BINUTILS="$BINUTILS_BASE/bin"
 AR="$BINUTILS/ar"

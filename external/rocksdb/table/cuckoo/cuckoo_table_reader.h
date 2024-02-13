@@ -15,13 +15,13 @@
 #include <vector>
 
 #include "db/dbformat.h"
-#include "file/random_access_file_reader.h"
 #include "options/cf_options.h"
 #include "rocksdb/env.h"
 #include "rocksdb/options.h"
 #include "table/table_reader.h"
+#include "util/file_reader_writer.h"
 
-namespace ROCKSDB_NAMESPACE {
+namespace rocksdb {
 
 class Arena;
 class TableReader;
@@ -51,9 +51,7 @@ class CuckooTableReader: public TableReader {
   InternalIterator* NewIterator(const ReadOptions&,
                                 const SliceTransform* prefix_extractor,
                                 Arena* arena, bool skip_filters,
-                                TableReaderCaller caller,
-                                size_t compaction_readahead_size = 0,
-                                bool allow_unprepared_value = false) override;
+                                TableReaderCaller caller, size_t compaction_readahead_size = 0) override;
   void Prepare(const Slice& target) override;
 
   // Report an approximation of how much memory has been used.
@@ -97,5 +95,5 @@ class CuckooTableReader: public TableReader {
       uint64_t max_num_buckets);
 };
 
-}  // namespace ROCKSDB_NAMESPACE
+}  // namespace rocksdb
 #endif  // ROCKSDB_LITE

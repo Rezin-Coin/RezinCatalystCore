@@ -21,11 +21,11 @@
 
 #include "table/block_based/block.h"
 #include "table/block_based/filter_block.h"
+#include "table/bloom_block.h"
 #include "table/format.h"
 #include "table/get_context.h"
 #include "table/internal_iterator.h"
 #include "table/meta_blocks.h"
-#include "table/plain/plain_table_bloom.h"
 #include "table/plain/plain_table_factory.h"
 #include "table/plain/plain_table_key_coding.h"
 #include "table/two_level_iterator.h"
@@ -36,10 +36,11 @@
 #include "util/coding.h"
 #include "util/dynamic_bloom.h"
 #include "util/hash.h"
+#include "util/murmurhash.h"
 #include "util/stop_watch.h"
 #include "util/string_util.h"
 
-namespace ROCKSDB_NAMESPACE {
+namespace rocksdb {
 
 namespace {
 
@@ -54,10 +55,6 @@ inline uint32_t GetFixed32Element(const char* base, size_t offset) {
 class PlainTableIterator : public InternalIterator {
  public:
   explicit PlainTableIterator(PlainTableReader* table, bool use_prefix_seek);
-  // No copying allowed
-  PlainTableIterator(const PlainTableIterator&) = delete;
-  void operator=(const Iterator&) = delete;
-
   ~PlainTableIterator() override;
 
   bool Valid() const override;
@@ -89,6 +86,9 @@ class PlainTableIterator : public InternalIterator {
   Slice key_;
   Slice value_;
   Status status_;
+  // No copying allowed
+  PlainTableIterator(const PlainTableIterator&) = delete;
+  void operator=(const Iterator&) = delete;
 };
 
 extern const uint64_t kPlainTableMagicNumber;
@@ -127,11 +127,10 @@ Status PlainTableReader::Open(
     return Status::NotSupported("File is too large for PlainTableReader!");
   }
 
-  TableProperties* props_ptr = nullptr;
+  TableProperties* props = nullptr;
   auto s = ReadTableProperties(file.get(), file_size, kPlainTableMagicNumber,
-                               ioptions, &props_ptr,
+                               ioptions, &props,
                                true /* compression_type_missing */);
-  std::shared_ptr<TableProperties> props(props_ptr);
   if (!s.ok()) {
     return s;
   }
@@ -165,7 +164,7 @@ Status PlainTableReader::Open(
 
   std::unique_ptr<PlainTableReader> new_reader(new PlainTableReader(
       ioptions, std::move(file), env_options, internal_comparator,
-      encoding_type, file_size, props.get(), prefix_extractor));
+      encoding_type, file_size, props, prefix_extractor));
 
   s = new_reader->MmapDataIfNeeded();
   if (!s.ok()) {
@@ -173,9 +172,8 @@ Status PlainTableReader::Open(
   }
 
   if (!full_scan_mode) {
-    s = new_reader->PopulateIndex(props.get(), bloom_bits_per_key,
-                                  hash_table_ratio, index_sparseness,
-                                  huge_page_tlb_size);
+    s = new_reader->PopulateIndex(props, bloom_bits_per_key, hash_table_ratio,
+                                  index_sparseness, huge_page_tlb_size);
     if (!s.ok()) {
       return s;
     }
@@ -184,8 +182,6 @@ Status PlainTableReader::Open(
     // can be used.
     new_reader->full_scan_mode_ = true;
   }
-  // PopulateIndex can add to the props, so don't store them until now
-  new_reader->table_properties_ = props;
 
   if (immortal_table && new_reader->file_info_.is_mmap_mode) {
     new_reader->dummy_cleanable_.reset(new Cleanable());
@@ -201,14 +197,8 @@ void PlainTableReader::SetupForCompaction() {
 InternalIterator* PlainTableReader::NewIterator(
     const ReadOptions& options, const SliceTransform* /* prefix_extractor */,
     Arena* arena, bool /*skip_filters*/, TableReaderCaller /*caller*/,
-    size_t /*compaction_readahead_size*/,
-    bool /* allow_unprepared_value */) {
-  // Not necessarily used here, but make sure this has been initialized
-  assert(table_properties_);
-
-  // Auto prefix mode is not implemented in PlainTable.
-  bool use_prefix_seek = !IsTotalOrderMode() && !options.total_order_seek &&
-                         !options.auto_prefix_mode;
+    size_t /*compaction_readahead_size*/) {
+  bool use_prefix_seek = !IsTotalOrderMode() && !options.total_order_seek;
   if (arena == nullptr) {
     return new PlainTableIterator(this, use_prefix_seek);
   } else {
@@ -269,19 +259,23 @@ Status PlainTableReader::PopulateIndexRecordList(
   return s;
 }
 
-void PlainTableReader::AllocateBloom(int bloom_bits_per_key, int num_keys,
-                                     size_t huge_page_tlb_size) {
-  uint32_t bloom_total_bits = num_keys * bloom_bits_per_key;
-  if (bloom_total_bits > 0) {
-    enable_bloom_ = true;
-    bloom_.SetTotalBits(&arena_, bloom_total_bits, ioptions_.bloom_locality,
-                        huge_page_tlb_size, ioptions_.info_log);
+void PlainTableReader::AllocateAndFillBloom(
+    int bloom_bits_per_key, int num_prefixes, size_t huge_page_tlb_size,
+    std::vector<uint32_t>* prefix_hashes) {
+  if (!IsTotalOrderMode()) {
+    uint32_t bloom_total_bits = num_prefixes * bloom_bits_per_key;
+    if (bloom_total_bits > 0) {
+      enable_bloom_ = true;
+      bloom_.SetTotalBits(&arena_, bloom_total_bits, ioptions_.bloom_locality,
+                          huge_page_tlb_size, ioptions_.info_log);
+      FillBloom(prefix_hashes);
+    }
   }
 }
 
-void PlainTableReader::FillBloom(const std::vector<uint32_t>& prefix_hashes) {
+void PlainTableReader::FillBloom(std::vector<uint32_t>* prefix_hashes) {
   assert(bloom_.IsInitialized());
-  for (const auto prefix_hash : prefix_hashes) {
+  for (auto prefix_hash : *prefix_hashes) {
     bloom_.AddHash(prefix_hash);
   }
 }
@@ -289,9 +283,7 @@ void PlainTableReader::FillBloom(const std::vector<uint32_t>& prefix_hashes) {
 Status PlainTableReader::MmapDataIfNeeded() {
   if (file_info_.is_mmap_mode) {
     // Get mmapped memory.
-    return file_info_.file->Read(IOOptions(), 0,
-                                 static_cast<size_t>(file_size_),
-                                 &file_info_.file_data, nullptr, nullptr);
+    return file_info_.file->Read(0, static_cast<size_t>(file_size_), &file_info_.file_data, nullptr);
   }
   return Status::OK();
 }
@@ -302,6 +294,7 @@ Status PlainTableReader::PopulateIndex(TableProperties* props,
                                        size_t index_sparseness,
                                        size_t huge_page_tlb_size) {
   assert(props != nullptr);
+  table_properties_.reset(props);
 
   BlockContents index_block_contents;
   Status s = ReadMetaBlock(file_info_.file.get(), nullptr /* prefetch_buffer */,
@@ -360,9 +353,14 @@ Status PlainTableReader::PopulateIndex(TableProperties* props,
   if (!index_in_file) {
     // Allocate bloom filter here for total order mode.
     if (IsTotalOrderMode()) {
-      AllocateBloom(bloom_bits_per_key,
-                    static_cast<uint32_t>(props->num_entries),
-                    huge_page_tlb_size);
+      uint32_t num_bloom_bits =
+          static_cast<uint32_t>(table_properties_->num_entries) *
+          bloom_bits_per_key;
+      if (num_bloom_bits > 0) {
+        enable_bloom_ = true;
+        bloom_.SetTotalBits(&arena_, num_bloom_bits, ioptions_.bloom_locality,
+                            huge_page_tlb_size, ioptions_.info_log);
+      }
     }
   } else if (bloom_in_file) {
     enable_bloom_ = true;
@@ -377,9 +375,10 @@ Status PlainTableReader::PopulateIndex(TableProperties* props,
       }
     }
     // cast away const qualifier, because bloom_ won't be changed
-    bloom_.SetRawData(const_cast<char*>(bloom_block->data()),
-                      static_cast<uint32_t>(bloom_block->size()) * 8,
-                      num_blocks);
+    bloom_.SetRawData(
+        const_cast<unsigned char*>(
+            reinterpret_cast<const unsigned char*>(bloom_block->data())),
+        static_cast<uint32_t>(bloom_block->size()) * 8, num_blocks);
   } else {
     // Index in file but no bloom in file. Disable bloom filter in this case.
     enable_bloom_ = false;
@@ -392,7 +391,6 @@ Status PlainTableReader::PopulateIndex(TableProperties* props,
 
   std::vector<uint32_t> prefix_hashes;
   if (!index_in_file) {
-    // Populates _bloom if enabled (total order mode)
     s = PopulateIndexRecordList(&index_builder, &prefix_hashes);
     if (!s.ok()) {
       return s;
@@ -405,15 +403,10 @@ Status PlainTableReader::PopulateIndex(TableProperties* props,
   }
 
   if (!index_in_file) {
-    if (!IsTotalOrderMode()) {
-      // Calculated bloom filter size and allocate memory for
-      // bloom filter based on the number of prefixes, then fill it.
-      AllocateBloom(bloom_bits_per_key, index_.GetNumPrefixes(),
-                    huge_page_tlb_size);
-      if (enable_bloom_) {
-        FillBloom(prefix_hashes);
-      }
-    }
+    // Calculated bloom filter size and allocate memory for
+    // bloom filter based on the number of prefixes, then fill it.
+    AllocateAndFillBloom(bloom_bits_per_key, index_.GetNumPrefixes(),
+                         huge_page_tlb_size, &prefix_hashes);
   }
 
   // Fill two table properties.
@@ -774,5 +767,5 @@ Status PlainTableIterator::status() const {
   return status_;
 }
 
-}  // namespace ROCKSDB_NAMESPACE
+}  // namespace rocksdb
 #endif  // ROCKSDB_LITE

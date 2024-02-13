@@ -13,7 +13,6 @@
 #include <string>
 
 #include "block_fetcher.h"
-#include "file/random_access_file_reader.h"
 #include "logging/logging.h"
 #include "memory/memory_allocator.h"
 #include "monitoring/perf_context_imp.h"
@@ -25,10 +24,12 @@
 #include "util/coding.h"
 #include "util/compression.h"
 #include "util/crc32c.h"
+#include "util/file_reader_writer.h"
 #include "util/stop_watch.h"
 #include "util/string_util.h"
+#include "util/xxhash.h"
 
-namespace ROCKSDB_NAMESPACE {
+namespace rocksdb {
 
 extern const uint64_t kLegacyBlockBasedTableMagicNumber;
 extern const uint64_t kBlockBasedTableMagicNumber;
@@ -267,16 +268,14 @@ std::string Footer::ToString() const {
     result.append("metaindex handle: " + metaindex_handle_.ToString() + "\n  ");
     result.append("index handle: " + index_handle_.ToString() + "\n  ");
     result.append("table_magic_number: " +
-                  ROCKSDB_NAMESPACE::ToString(table_magic_number_) + "\n  ");
+                  rocksdb::ToString(table_magic_number_) + "\n  ");
   } else {
-    result.append("checksum: " + ROCKSDB_NAMESPACE::ToString(checksum_) +
-                  "\n  ");
+    result.append("checksum: " + rocksdb::ToString(checksum_) + "\n  ");
     result.append("metaindex handle: " + metaindex_handle_.ToString() + "\n  ");
     result.append("index handle: " + index_handle_.ToString() + "\n  ");
-    result.append("footer version: " + ROCKSDB_NAMESPACE::ToString(version_) +
-                  "\n  ");
+    result.append("footer version: " + rocksdb::ToString(version_) + "\n  ");
     result.append("table_magic_number: " +
-                  ROCKSDB_NAMESPACE::ToString(table_magic_number_) + "\n  ");
+                  rocksdb::ToString(table_magic_number_) + "\n  ");
   }
   return result;
 }
@@ -292,8 +291,7 @@ Status ReadFooterFromFile(RandomAccessFileReader* file,
                               file->file_name());
   }
 
-  std::string footer_buf;
-  AlignedBuf internal_buf;
+  char footer_space[Footer::kMaxEncodedLength];
   Slice footer_input;
   size_t read_offset =
       (file_size > Footer::kMaxEncodedLength)
@@ -303,14 +301,8 @@ Status ReadFooterFromFile(RandomAccessFileReader* file,
   if (prefetch_buffer == nullptr ||
       !prefetch_buffer->TryReadFromCache(read_offset, Footer::kMaxEncodedLength,
                                          &footer_input)) {
-    if (file->use_direct_io()) {
-      s = file->Read(IOOptions(), read_offset, Footer::kMaxEncodedLength,
-                     &footer_input, nullptr, &internal_buf);
-    } else {
-      footer_buf.reserve(Footer::kMaxEncodedLength);
-      s = file->Read(IOOptions(), read_offset, Footer::kMaxEncodedLength,
-                     &footer_input, &footer_buf[0], nullptr);
-    }
+    s = file->Read(read_offset, Footer::kMaxEncodedLength, &footer_input,
+                   footer_space);
     if (!s.ok()) return s;
   }
 
@@ -463,10 +455,10 @@ Status UncompressBlockContents(const UncompressionInfo& uncompression_info,
                                const ImmutableCFOptions& ioptions,
                                MemoryAllocator* allocator) {
   assert(data[n] != kNoCompression);
-  assert(data[n] == static_cast<char>(uncompression_info.type()));
+  assert(data[n] == uncompression_info.type());
   return UncompressBlockContentsForCompressionType(uncompression_info, data, n,
                                                    contents, format_version,
                                                    ioptions, allocator);
 }
 
-}  // namespace ROCKSDB_NAMESPACE
+}  // namespace rocksdb

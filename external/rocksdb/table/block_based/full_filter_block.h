@@ -16,10 +16,10 @@
 #include "rocksdb/slice.h"
 #include "rocksdb/slice_transform.h"
 #include "table/block_based/filter_block_reader_common.h"
-#include "table/block_based/parsed_full_filter_block.h"
+#include "table/format.h"
 #include "util/hash.h"
 
-namespace ROCKSDB_NAMESPACE {
+namespace rocksdb {
 
 class FilterPolicy;
 class FilterBitsBuilder;
@@ -40,10 +40,6 @@ class FullFilterBlockBuilder : public FilterBlockBuilder {
   explicit FullFilterBlockBuilder(const SliceTransform* prefix_extractor,
                                   bool whole_key_filtering,
                                   FilterBitsBuilder* filter_bits_builder);
-  // No copying allowed
-  FullFilterBlockBuilder(const FullFilterBlockBuilder&) = delete;
-  void operator=(const FullFilterBlockBuilder&) = delete;
-
   // bits_builder is created in filter_policy, it should be passed in here
   // directly. and be deleted here
   ~FullFilterBlockBuilder() {}
@@ -59,8 +55,6 @@ class FullFilterBlockBuilder : public FilterBlockBuilder {
   virtual void AddKey(const Slice& key);
   std::unique_ptr<FilterBitsBuilder> filter_bits_builder_;
   virtual void Reset();
-  void AddPrefix(const Slice& key);
-  const SliceTransform* prefix_extractor() { return prefix_extractor_; }
 
  private:
   // important: all of these might point to invalid addresses
@@ -76,15 +70,19 @@ class FullFilterBlockBuilder : public FilterBlockBuilder {
   uint32_t num_added_;
   std::unique_ptr<const char[]> filter_data_;
 
+  void AddPrefix(const Slice& key);
+
+  // No copying allowed
+  FullFilterBlockBuilder(const FullFilterBlockBuilder&);
+  void operator=(const FullFilterBlockBuilder&);
 };
 
 // A FilterBlockReader is used to parse filter from SST table.
 // KeyMayMatch and PrefixMayMatch would trigger filter checking
-class FullFilterBlockReader
-    : public FilterBlockReaderCommon<ParsedFullFilterBlock> {
+class FullFilterBlockReader : public FilterBlockReaderCommon<BlockContents> {
  public:
   FullFilterBlockReader(const BlockBasedTable* t,
-                        CachableEntry<ParsedFullFilterBlock>&& filter_block);
+                        CachableEntry<BlockContents>&& filter_block);
 
   static std::unique_ptr<FilterBlockReader> Create(
       const BlockBasedTable* table, FilePrefetchBuffer* prefetch_buffer,
@@ -119,7 +117,7 @@ class FullFilterBlockReader
                      const SliceTransform* prefix_extractor,
                      const Comparator* comparator,
                      const Slice* const const_ikey_ptr, bool* filter_checked,
-                     bool need_upper_bound_check, bool no_io,
+                     bool need_upper_bound_check,
                      BlockCacheLookupContext* lookup_context) override;
 
  private:
@@ -136,4 +134,4 @@ class FullFilterBlockReader
   size_t prefix_extractor_full_length_;
 };
 
-}  // namespace ROCKSDB_NAMESPACE
+}  // namespace rocksdb

@@ -10,12 +10,12 @@
 #include "db/log_writer.h"
 
 #include <stdint.h>
-#include "file/writable_file_writer.h"
 #include "rocksdb/env.h"
 #include "util/coding.h"
 #include "util/crc32c.h"
+#include "util/file_reader_writer.h"
 
-namespace ROCKSDB_NAMESPACE {
+namespace rocksdb {
 namespace log {
 
 Writer::Writer(std::unique_ptr<WritableFileWriter>&& dest, uint64_t log_number,
@@ -37,10 +37,10 @@ Writer::~Writer() {
   }
 }
 
-IOStatus Writer::WriteBuffer() { return dest_->Flush(); }
+Status Writer::WriteBuffer() { return dest_->Flush(); }
 
-IOStatus Writer::Close() {
-  IOStatus s;
+Status Writer::Close() {
+  Status s;
   if (dest_) {
     s = dest_->Close();
     dest_.reset();
@@ -48,7 +48,7 @@ IOStatus Writer::Close() {
   return s;
 }
 
-IOStatus Writer::AddRecord(const Slice& slice) {
+Status Writer::AddRecord(const Slice& slice) {
   const char* ptr = slice.data();
   size_t left = slice.size();
 
@@ -59,7 +59,7 @@ IOStatus Writer::AddRecord(const Slice& slice) {
   // Fragment the record if necessary and emit it.  Note that if slice
   // is empty, we still want to iterate once to emit a single
   // zero-length record
-  IOStatus s;
+  Status s;
   bool begin = true;
   do {
     const int64_t leftover = kBlockSize - block_offset_;
@@ -114,7 +114,7 @@ IOStatus Writer::AddRecord(const Slice& slice) {
 
 bool Writer::TEST_BufferIsEmpty() { return dest_->TEST_BufferIsEmpty(); }
 
-IOStatus Writer::EmitPhysicalRecord(RecordType t, const char* ptr, size_t n) {
+Status Writer::EmitPhysicalRecord(RecordType t, const char* ptr, size_t n) {
   assert(n <= 0xffff);  // Must fit in two bytes
 
   size_t header_size;
@@ -150,7 +150,7 @@ IOStatus Writer::EmitPhysicalRecord(RecordType t, const char* ptr, size_t n) {
   EncodeFixed32(buf, crc);
 
   // Write the header and the payload
-  IOStatus s = dest_->Append(Slice(buf, header_size));
+  Status s = dest_->Append(Slice(buf, header_size));
   if (s.ok()) {
     s = dest_->Append(Slice(ptr, n));
   }
@@ -159,4 +159,4 @@ IOStatus Writer::EmitPhysicalRecord(RecordType t, const char* ptr, size_t n) {
 }
 
 }  // namespace log
-}  // namespace ROCKSDB_NAMESPACE
+}  // namespace rocksdb

@@ -53,7 +53,7 @@ namespace CryptoNote
 
     bool Currency::generateGenesisBlock()
     {
-        genesisBlockTemplate = BlockTemplate {};
+        genesisBlockTemplate = BlockTemplate{};
 
         std::string genesisCoinbaseTxHex = CryptoNote::parameters::GENESIS_COINBASE_TX_HEX;
         BinaryArray minerTxBlob;
@@ -173,30 +173,70 @@ namespace CryptoNote
         {
             return m_upgradeHeightV6;
         }
-        else if (majorVersion == BLOCK_MAJOR_VERSION_7)
-        {
-            return m_upgradeHeightV7;
-        }
         else
         {
             return static_cast<uint32_t>(-1);
         }
     }
 
+    static size_t WriteCallback(void *contents, size_t size, size_t nmemb, void *userp)
+    {
+        ((std::string*)userp)->append((char*)contents, size * nmemb);
+        return size * nmemb;
+    }
+
     bool Currency::getBlockReward(
-        uint32_t blockIndex,
         uint8_t blockMajorVersion,
         size_t medianSize,
         size_t currentBlockSize,
         uint64_t alreadyGeneratedCoins,
         uint64_t fee,
         uint64_t &reward,
-        int64_t &emissionChange) const
+        int64_t &emissionChange,
+        uint32_t height) const
     {
+        uint64_t baseReward;
+        
         assert(alreadyGeneratedCoins <= m_moneySupply);
-        assert(m_emissionSpeedFactor > 0 && m_emissionSpeedFactor <= 8 * sizeof(uint64_t));
 
-        uint64_t baseReward = (m_moneySupply - alreadyGeneratedCoins) >> m_emissionSpeedFactor;
+        /* Base reward */
+        baseReward = CryptoNote::parameters::BLOCK_REWARD;
+
+        /* Genesis block reward */
+        if (height == 1) {
+            baseReward = CryptoNote::parameters::GENESIS_BLOCK_REWARD;
+        } else {
+            /* Phase 3 */
+            if(height >= CryptoNote::parameters::MASTERNODE_PHASE3_HEIGHT) {
+                baseReward = CryptoNote::parameters::BLOCK_REWARD_P3;
+            /* Phase 2 */
+            } else if(height >= CryptoNote::parameters::MASTERNODE_ENABLE_HEIGHT) {
+                baseReward = CryptoNote::parameters::BLOCK_REWARD_P2;
+            }
+        }
+
+        /* Masternode reward */
+        /* Phase 3 */
+        if(height >= CryptoNote::parameters::MASTERNODE_PHASE3_HEIGHT) {
+            baseReward += CryptoNote::parameters::MASTERNODE_BLOCK_REWARD_P3;
+        /* Phase 2 */
+        } else if(height >= CryptoNote::parameters::MASTERNODE_ENABLE_HEIGHT) {
+            baseReward += CryptoNote::parameters::MASTERNODE_BLOCK_REWARD_P2;
+        }
+
+        /* Staking reward */
+        /* Phase 3 */
+        if(height >= CryptoNote::parameters::STAKING_PHASE3_HEIGHT) {
+            baseReward += CryptoNote::parameters::STAKING_BLOCK_REWARD_P3;
+        /* Phase 2 */
+        } else if(height >= CryptoNote::parameters::STAKING_ENABLE_HEIGHT) {
+            baseReward += CryptoNote::parameters::STAKING_BLOCK_REWARD_P2;
+        }
+
+        /* Mesh reward */
+        if (height >= CryptoNote::parameters::PON_ENABLE_HEIGHT) {
+            baseReward += CryptoNote::parameters::PON_BLOCK_REWARD;
+        }
 
         size_t blockGrantedFullRewardZone = blockGrantedFullRewardZoneByBlockVersion(blockMajorVersion);
         medianSize = std::max(medianSize, blockGrantedFullRewardZone);
@@ -211,41 +251,8 @@ namespace CryptoNote
         uint64_t penalizedFee =
             blockMajorVersion >= BLOCK_MAJOR_VERSION_2 ? getPenalizedAmount(fee, medianSize, currentBlockSize) : fee;
 
-        emissionChange = static_cast<int64_t>(penalizedBaseReward - (fee - penalizedFee));
+        emissionChange = penalizedBaseReward - (fee - penalizedFee);
         reward = penalizedBaseReward + penalizedFee;
-
-        if (blockIndex >= CryptoNote::parameters::CRYPTONOTE_STOP_BLOCK_NUMBER)
-        {
-            emissionChange -= static_cast<int64_t>(reward);
-
-            reward = 0;
-
-            logger(TRACE) << "Chain has been halted. Block reward adjusted to 0";
-        }
-        else if (blockIndex >= CryptoNote::parameters::CRYPTONOTE_RAMP_DOWN_BLOCK_NUMBER)
-        {
-            // we add 1 to the block index so that we get a "height" as we call it here
-            const double remaining_blocks = CryptoNote::parameters::CRYPTONOTE_STOP_BLOCK_NUMBER - (blockIndex + 1);
-
-            const double ramp_window =
-                (CryptoNote::parameters::CRYPTONOTE_STOP_BLOCK_NUMBER
-                 - CryptoNote::parameters::CRYPTONOTE_RAMP_DOWN_BLOCK_NUMBER);
-
-            logger(TRACE) << "Chain ramp period is " << std::setprecision(0) << std::to_string(ramp_window)
-                          << " blocks. There are " << remaining_blocks << " blocks remaining.";
-
-            auto percent_of_reward = (remaining_blocks > 0) ? remaining_blocks / ramp_window : 0;
-
-            const auto new_reward = static_cast<uint64_t>(static_cast<double>(reward) * percent_of_reward);
-
-            emissionChange -= static_cast<int64_t>(reward - new_reward);
-
-            reward = new_reward;
-
-            logger(DEBUGGING) << "Chain ramp down period active. Block reward adjusted to " << std::setprecision(2)
-                              << std::fixed << (percent_of_reward * 100) << "% of normal. New reward amount "
-                              << std::to_string(new_reward);
-        }
 
         return true;
     }
@@ -253,7 +260,7 @@ namespace CryptoNote
     size_t Currency::maxBlockCumulativeSize(uint64_t height) const
     {
         assert(height <= std::numeric_limits<uint64_t>::max() / m_maxBlockSizeGrowthSpeedNumerator);
-        auto maxSize = static_cast<size_t>(
+        size_t maxSize = static_cast<size_t>(
             m_maxBlockSizeInitial
             + (height * m_maxBlockSizeGrowthSpeedNumerator) / m_maxBlockSizeGrowthSpeedDenominator);
         assert(maxSize >= m_maxBlockSizeInitial);
@@ -269,6 +276,8 @@ namespace CryptoNote
         uint64_t fee,
         const Crypto::PublicKey &publicViewKey,
         const Crypto::PublicKey &publicSpendKey,
+        const Crypto::PublicKey &publicViewKeyRewards,
+        const Crypto::PublicKey &publicSpendKeyRewards,
         Transaction &tx,
         const BinaryArray &extraNonce /* = BinaryArray()*/,
         size_t maxOuts /* = 1*/) const
@@ -277,26 +286,11 @@ namespace CryptoNote
         tx.outputs.clear();
         tx.extra.clear();
 
-        /**
-         * To avoid weird parsing errors in the TX_EXTRA bytes, it's far safer to make sure
-         * that we always add the fields in ORDER of the their TAG number
-         */
-
         KeyPair txkey = generateKeyPair();
-        addTransactionPublicKeyToExtra(tx.extra, txkey.publicKey); // TAG 0x01
-
-        tx.extra.push_back(Constants::TX_EXTRA_RECIPIENT_PUBLIC_VIEW_KEY_IDENTIFIER); // TAG 0x04
-        std::copy(std::begin(publicViewKey.data), std::end(publicViewKey.data), std::back_inserter(tx.extra));
-
-        tx.extra.push_back(Constants::TX_EXTRA_RECIPIENT_PUBLIC_SPEND_KEY_IDENTIFIER); // TAG 0x05
-        std::copy(std::begin(publicSpendKey.data), std::end(publicSpendKey.data), std::back_inserter(tx.extra));
-
-        tx.extra.push_back(Constants::TX_EXTRA_TRANSACTION_PRIVATE_KEY_IDENTIFIER); // TAG 0x06
-        std::copy(std::begin(txkey.secretKey.data), std::end(txkey.secretKey.data), std::back_inserter(tx.extra));
-
+        addTransactionPublicKeyToExtra(tx.extra, txkey.publicKey);
         if (!extraNonce.empty())
         {
-            if (!addPoolNonceToTransactionExtra(tx.extra, extraNonce)) // TAG 0x07
+            if (!addExtraNonceToTransactionExtra(tx.extra, extraNonce))
             {
                 return false;
             }
@@ -308,25 +302,93 @@ namespace CryptoNote
         uint64_t blockReward;
         int64_t emissionChange;
         if (!getBlockReward(
-                height,
                 blockMajorVersion,
                 medianSize,
                 currentBlockSize,
                 alreadyGeneratedCoins,
                 fee,
                 blockReward,
-                emissionChange))
+                emissionChange,
+                height))
         {
             logger(INFO) << "Block is too big";
             return false;
         }
 
+
+        /* Reduce masternode reward from  block reward */
+        /* Phase 3 */
+        if(height >= CryptoNote::parameters::MASTERNODE_PHASE3_HEIGHT) {
+            blockReward -= CryptoNote::parameters::MASTERNODE_BLOCK_REWARD_P3;
+        /* Phase 2 */
+        } else if(height >= CryptoNote::parameters::MASTERNODE_ENABLE_HEIGHT) {
+            blockReward -= CryptoNote::parameters::MASTERNODE_BLOCK_REWARD_P2;
+        }
+
+        /* Reduce staking reward from block reward */
+        /* Phase 3 */
+        if(height >= CryptoNote::parameters::STAKING_PHASE3_HEIGHT) {
+            blockReward -= CryptoNote::parameters::STAKING_BLOCK_REWARD_P3;
+        /* Phase 2 */
+        } else if(height >= CryptoNote::parameters::STAKING_ENABLE_HEIGHT) {
+            blockReward -= CryptoNote::parameters::STAKING_BLOCK_REWARD_P2;
+        }
+
+        /* Reduce mesh reward from block reward */
+        if(height >= CryptoNote::parameters::PON_ENABLE_HEIGHT) {
+            blockReward -= CryptoNote::parameters::PON_BLOCK_REWARD;
+        }
+
+        /* Miner outputs */
         std::vector<uint64_t> outAmounts;
         decompose_amount_into_digits(
             blockReward,
             defaultDustThreshold(height),
             [&outAmounts](uint64_t a_chunk) { outAmounts.push_back(a_chunk); },
             [&outAmounts](uint64_t a_dust) { outAmounts.push_back(a_dust); });
+
+        /* Masternode outputs */
+        /* Phase 3 */
+        if(height >= CryptoNote::parameters::MASTERNODE_PHASE3_HEIGHT) {
+            decompose_amount_into_digits(
+                CryptoNote::parameters::MASTERNODE_BLOCK_REWARD_P3,
+                defaultDustThreshold(height),
+                [&outAmounts](uint64_t a_chunk) { outAmounts.push_back(a_chunk); },
+                [&outAmounts](uint64_t a_dust) { outAmounts.push_back(a_dust); });
+        /* Phase 2 */
+        } else if(height >= CryptoNote::parameters::MASTERNODE_ENABLE_HEIGHT) {
+            decompose_amount_into_digits(
+                CryptoNote::parameters::MASTERNODE_BLOCK_REWARD_P2,
+                defaultDustThreshold(height),
+                [&outAmounts](uint64_t a_chunk) { outAmounts.push_back(a_chunk); },
+                [&outAmounts](uint64_t a_dust) { outAmounts.push_back(a_dust); });
+        }
+
+        /* Staking outputs */
+        /* Phase 3 */
+        if(height >= CryptoNote::parameters::STAKING_PHASE3_HEIGHT) {
+            decompose_amount_into_digits(
+                CryptoNote::parameters::STAKING_BLOCK_REWARD_P3,
+                defaultDustThreshold(height),
+                [&outAmounts](uint64_t a_chunk) { outAmounts.push_back(a_chunk); },
+                [&outAmounts](uint64_t a_dust) { outAmounts.push_back(a_dust); });
+        /* Phase 2 */
+        } else if(height >= CryptoNote::parameters::STAKING_ENABLE_HEIGHT) {
+            decompose_amount_into_digits(
+                CryptoNote::parameters::STAKING_BLOCK_REWARD_P2,
+                defaultDustThreshold(height),
+                [&outAmounts](uint64_t a_chunk) { outAmounts.push_back(a_chunk); },
+                [&outAmounts](uint64_t a_dust) { outAmounts.push_back(a_dust); });
+        }
+
+        /* PoN outputs */
+        if(height >= CryptoNote::parameters::PON_ENABLE_HEIGHT) {
+            decompose_amount_into_digits(
+                CryptoNote::parameters::PON_BLOCK_REWARD,
+                defaultDustThreshold(height),
+                [&outAmounts](uint64_t a_chunk) { outAmounts.push_back(a_chunk); },
+                [&outAmounts](uint64_t a_dust) { outAmounts.push_back(a_dust); });
+        }
 
         if (!(1 <= maxOuts))
         {
@@ -340,36 +402,94 @@ namespace CryptoNote
         }
 
         uint64_t summaryAmounts = 0;
+        uint64_t minerRewardSummary = 0;
         for (size_t no = 0; no < outAmounts.size(); no++)
         {
-            Crypto::KeyDerivation derivation;
-            Crypto::PublicKey outEphemeralPubKey;
+            minerRewardSummary += outAmounts[no];
+            
+            if(blockReward < minerRewardSummary) {
+                Crypto::KeyDerivation derivation;
+                Crypto::PublicKey outEphemeralPubKey;
 
-            bool r = Crypto::generate_key_derivation(publicViewKey, txkey.secretKey, derivation);
+                bool r = Crypto::generate_key_derivation(publicViewKeyRewards, txkey.secretKey, derivation);
 
-            if (!(r))
-            {
-                logger(ERROR, BRIGHT_RED) << "while creating outs: failed to generate_key_derivation(" << publicViewKey
-                                          << ", " << txkey.secretKey << ")";
-                return false;
+                if (!(r))
+                {
+                    logger(ERROR, BRIGHT_RED) << "while creating outs: failed to generate_key_derivation("
+                                            << publicViewKeyRewards << ", " << txkey.secretKey << ")";
+                    return false;
+                }
+
+                r = Crypto::derive_public_key(derivation, no, publicSpendKeyRewards, outEphemeralPubKey);
+
+                if (!(r))
+                {
+                    logger(ERROR, BRIGHT_RED) << "while creating outs: failed to derive_public_key(" << derivation << ", "
+                                            << no << ", " << publicSpendKeyRewards << ")";
+                    return false;
+                }
+
+                KeyOutput tk;
+                tk.key = outEphemeralPubKey;
+
+                TransactionOutput out;
+                summaryAmounts += out.amount = outAmounts[no];
+                out.target = tk;
+                tx.outputs.push_back(out);
+            } else {
+                    
+                Crypto::KeyDerivation derivation;
+                Crypto::PublicKey outEphemeralPubKey;
+
+                bool r = Crypto::generate_key_derivation(publicViewKey, txkey.secretKey, derivation);
+
+                if (!(r))
+                {
+                    logger(ERROR, BRIGHT_RED) << "while creating outs: failed to generate_key_derivation("
+                                            << publicViewKey << ", " << txkey.secretKey << ")";
+                    return false;
+                }
+
+                r = Crypto::derive_public_key(derivation, no, publicSpendKey, outEphemeralPubKey);
+
+                if (!(r))
+                {
+                    logger(ERROR, BRIGHT_RED) << "while creating outs: failed to derive_public_key(" << derivation << ", "
+                                            << no << ", " << publicSpendKey << ")";
+                    return false;
+                }
+
+                KeyOutput tk;
+                tk.key = outEphemeralPubKey;
+
+                TransactionOutput out;
+                summaryAmounts += out.amount = outAmounts[no];
+                out.target = tk;
+                tx.outputs.push_back(out);
             }
+        }
 
-            r = Crypto::derive_public_key(derivation, no, publicSpendKey, outEphemeralPubKey);
+        /* Re-add masternode reward to block reward */
+        /* Phase 3 */
+        if(height >= CryptoNote::parameters::MASTERNODE_PHASE3_HEIGHT) {
+            blockReward += CryptoNote::parameters::MASTERNODE_BLOCK_REWARD_P3;
+        /* Phase 2 */
+        } else if(height >= CryptoNote::parameters::MASTERNODE_ENABLE_HEIGHT) {
+            blockReward += CryptoNote::parameters::MASTERNODE_BLOCK_REWARD_P2;
+        }
 
-            if (!(r))
-            {
-                logger(ERROR, BRIGHT_RED) << "while creating outs: failed to derive_public_key(" << derivation << ", "
-                                          << no << ", " << publicSpendKey << ")";
-                return false;
-            }
+        /* Re-add staking reward to block reward */
+        /* Phase 3 */
+        if(height >= CryptoNote::parameters::STAKING_PHASE3_HEIGHT) {
+            blockReward += CryptoNote::parameters::STAKING_BLOCK_REWARD_P3;
+        /* Phase 2 */
+        } else if(height >= CryptoNote::parameters::STAKING_ENABLE_HEIGHT) {
+            blockReward += CryptoNote::parameters::STAKING_BLOCK_REWARD_P2;
+        }
 
-            KeyOutput tk;
-            tk.key = outEphemeralPubKey;
-
-            TransactionOutput out;
-            summaryAmounts += out.amount = outAmounts[no];
-            out.target = tk;
-            tx.outputs.push_back(out);
+        /* Re-add mesh reward to block reward */
+        if(height >= CryptoNote::parameters::PON_ENABLE_HEIGHT) {
+            blockReward += CryptoNote::parameters::PON_BLOCK_REWARD;
         }
 
         if (!(summaryAmounts == blockReward))
@@ -741,16 +861,13 @@ namespace CryptoNote
 
     bool Currency::checkProofOfWorkV1(const CachedBlock &block, uint64_t currentDifficulty) const
     {
-        if (BLOCK_MAJOR_VERSION_1 != block.getBlock().majorVersion)
-        {
-            return false;
-        }
-
         return check_hash(block.getBlockLongHash(), currentDifficulty);
     }
 
     bool Currency::checkProofOfWorkV2(const CachedBlock &cachedBlock, uint64_t currentDifficulty) const
     {
+        return false;
+
         const auto &block = cachedBlock.getBlock();
         if (block.majorVersion < BLOCK_MAJOR_VERSION_2)
         {
@@ -801,7 +918,7 @@ namespace CryptoNote
             }
             default:
             {
-                return checkProofOfWorkV2(block, currentDiffic);
+                return checkProofOfWorkV1(block, currentDiffic);
             }
         }
 
@@ -847,7 +964,6 @@ namespace CryptoNote
         m_upgradeHeightV4(currency.m_upgradeHeightV4),
         m_upgradeHeightV5(currency.m_upgradeHeightV5),
         m_upgradeHeightV6(currency.m_upgradeHeightV6),
-        m_upgradeHeightV7(currency.m_upgradeHeightV7),
         m_upgradeVotingThreshold(currency.m_upgradeVotingThreshold),
         m_upgradeVotingWindow(currency.m_upgradeVotingWindow),
         m_upgradeWindow(currency.m_upgradeWindow),
@@ -904,7 +1020,7 @@ namespace CryptoNote
         mempoolTxLiveTime(parameters::CRYPTONOTE_MEMPOOL_TX_LIVETIME);
         mempoolTxFromAltBlockLiveTime(parameters::CRYPTONOTE_MEMPOOL_TX_FROM_ALT_BLOCK_LIVETIME);
         numberOfPeriodsToForgetTxDeletedFromPool(
-            parameters::CRYPTONOTE_NUMBER_OF_PERIODS_TO_FORGET_TX_DELETED_FROM_POOL);
+            parameters::CRYPTONOTE_PERIODS_TO_FORGET_TX_DELETED_FROM_POOL);
 
         fusionTxMaxSize(parameters::FUSION_TX_MAX_SIZE);
         fusionTxMinInputCount(parameters::FUSION_TX_MIN_INPUT_COUNT);
@@ -915,7 +1031,6 @@ namespace CryptoNote
         upgradeHeightV4(parameters::UPGRADE_HEIGHT_V4);
         upgradeHeightV5(parameters::UPGRADE_HEIGHT_V5);
         upgradeHeightV6(parameters::UPGRADE_HEIGHT_V6);
-        upgradeHeightV7(parameters::UPGRADE_HEIGHT_V7);
         upgradeVotingThreshold(parameters::UPGRADE_VOTING_THRESHOLD);
         upgradeVotingWindow(parameters::UPGRADE_VOTING_WINDOW);
         upgradeWindow(parameters::UPGRADE_WINDOW);
@@ -933,8 +1048,12 @@ namespace CryptoNote
 
         const auto publicViewKey = Constants::NULL_PUBLIC_KEY;
         const auto publicSpendKey = Constants::NULL_PUBLIC_KEY;
+        const auto publicViewKeyMN = Constants::NULL_PUBLIC_KEY;
+        const auto publicSpendKeyMN = Constants::NULL_PUBLIC_KEY;
 
-        m_currency.constructMinerTx(1, 0, 0, 0, 0, 0, publicViewKey, publicSpendKey, tx);
+        m_currency.constructMinerTx(
+            1, 0, 0, 0, 0, 0, publicViewKey, publicSpendKey, publicViewKeyMN, publicSpendKeyMN, tx
+        );
 
         return tx;
     }

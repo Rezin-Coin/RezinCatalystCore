@@ -17,7 +17,7 @@
 // These classes issue the lowest level of operations of PlainTable.
 // Actual data format of the key is documented in comments of class
 // PlainTableFactory.
-namespace ROCKSDB_NAMESPACE {
+namespace rocksdb {
 
 class WritableFile;
 struct ParsedInternalKey;
@@ -44,9 +44,8 @@ class PlainTableKeyEncoder {
   // meta_bytes_buf: buffer for extra meta bytes
   // meta_bytes_buf_size: offset to append extra meta bytes. Will be updated
   //                      if meta_bytes_buf is updated.
-  IOStatus AppendKey(const Slice& key, WritableFileWriter* file,
-                     uint64_t* offset, char* meta_bytes_buf,
-                     size_t* meta_bytes_buf_size);
+  Status AppendKey(const Slice& key, WritableFileWriter* file, uint64_t* offset,
+                   char* meta_bytes_buf, size_t* meta_bytes_buf_size);
 
   // Return actual encoding type to be picked
   EncodingType GetEncodingType() { return encoding_type_; }
@@ -189,6 +188,6 @@ class PlainTableKeyDecoder {
                            uint32_t* bytes_read);
 };
 
-}  // namespace ROCKSDB_NAMESPACE
+}  // namespace rocksdb
 
 #endif  // ROCKSDB_LITE

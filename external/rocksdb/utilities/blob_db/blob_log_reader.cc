@@ -9,11 +9,11 @@
 
 #include <algorithm>
 
-#include "file/random_access_file_reader.h"
 #include "monitoring/statistics.h"
+#include "util/file_reader_writer.h"
 #include "util/stop_watch.h"
 
-namespace ROCKSDB_NAMESPACE {
+namespace rocksdb {
 namespace blob_db {
 
 Reader::Reader(std::unique_ptr<RandomAccessFileReader>&& file_reader, Env* env,
@@ -26,8 +26,7 @@ Reader::Reader(std::unique_ptr<RandomAccessFileReader>&& file_reader, Env* env,
 
 Status Reader::ReadSlice(uint64_t size, Slice* slice, char* buf) {
   StopWatch read_sw(env_, statistics_, BLOB_DB_BLOB_FILE_READ_MICROS);
-  Status s = file_->Read(IOOptions(), next_byte_, static_cast<size_t>(size),
-                         slice, buf, nullptr);
+  Status s = file_->Read(next_byte_, static_cast<size_t>(size), slice, buf);
   next_byte_ += size;
   if (!s.ok()) {
     return s;
@@ -102,5 +101,5 @@ Status Reader::ReadRecord(BlobLogRecord* record, ReadLevel level,
 }
 
 }  // namespace blob_db
-}  // namespace ROCKSDB_NAMESPACE
+}  // namespace rocksdb
 #endif  // ROCKSDB_LITE

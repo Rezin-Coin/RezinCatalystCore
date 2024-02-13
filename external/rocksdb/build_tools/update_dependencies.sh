@@ -6,12 +6,6 @@
 BASEDIR=$(dirname $0)
 OUTPUT=""
 
-function log_header()
-{
-  echo "# Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved." >> "$OUTPUT"
-}
-
-
 function log_variable()
 {
   echo "$1=${!1}" >> "$OUTPUT"
@@ -75,7 +69,6 @@ echo "Writing dependencies to $OUTPUT"
 GCC_BASE=`readlink -f $TP2_LATEST/gcc/7.x/centos7-native/*/`
 CLANG_BASE=`readlink -f $TP2_LATEST/llvm-fb/stable/centos7-native/*/`
 
-log_header
 log_variable GCC_BASE
 log_variable CLANG_BASE
 
@@ -92,7 +85,6 @@ get_lib_base jemalloc   LATEST  platform007
 get_lib_base numa       LATEST  platform007
 get_lib_base libunwind  LATEST  platform007
 get_lib_base tbb        LATEST  platform007
-get_lib_base liburing   LATEST  platform007
 
 get_lib_base kernel-headers fb platform007
 get_lib_base binutils   LATEST centos7-native
@@ -116,7 +108,6 @@ echo "Writing dependencies to $OUTPUT"
 GCC_BASE=`readlink -f $TP2_LATEST/gcc/5.x/centos7-native/*/`
 CLANG_BASE=`readlink -f $TP2_LATEST/llvm-fb/stable/centos7-native/*/`
 
-log_header
 log_variable GCC_BASE
 log_variable CLANG_BASE
 
@@ -156,7 +147,6 @@ echo "Writing 4.8.1 dependencies to $OUTPUT"
 GCC_BASE=`readlink -f $TP2_LATEST/gcc/4.8.1/centos6-native/*/`
 CLANG_BASE=`readlink -f $TP2_LATEST/llvm-fb/stable/centos6-native/*/`
 
-log_header
 log_variable GCC_BASE
 log_variable CLANG_BASE
 

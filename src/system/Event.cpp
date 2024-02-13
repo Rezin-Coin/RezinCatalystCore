@@ -107,8 +107,7 @@ namespace System
         if (!state)
         {
             EventWaiter waiter = {false, nullptr, nullptr, dispatcher->getCurrentContext()};
-            waiter.context->interruptProcedure = [&]
-            {
+            waiter.context->interruptProcedure = [&] {
                 if (waiter.next != nullptr)
                 {
                     assert(waiter.next->prev == &waiter);

@@ -16,7 +16,10 @@
 namespace System
 {
     MemoryMappedFile::MemoryMappedFile():
-        m_fileHandle(INVALID_HANDLE_VALUE), m_mappingHandle(INVALID_HANDLE_VALUE), m_size(0), m_data(nullptr)
+        m_fileHandle(INVALID_HANDLE_VALUE),
+        m_mappingHandle(INVALID_HANDLE_VALUE),
+        m_size(0),
+        m_data(nullptr)
     {
     }
 
@@ -70,13 +73,11 @@ namespace System
             }
         }
 
-        Tools::ScopeExit failExitHandler(
-            [this, &ec]
-            {
-                ec = std::error_code(::GetLastError(), std::system_category());
-                std::error_code ignore;
-                close(ignore);
-            });
+        Tools::ScopeExit failExitHandler([this, &ec] {
+            ec = std::error_code(::GetLastError(), std::system_category());
+            std::error_code ignore;
+            close(ignore);
+        });
 
         m_fileHandle = ::CreateFile(
             path.c_str(),
@@ -145,13 +146,11 @@ namespace System
             }
         }
 
-        Tools::ScopeExit failExitHandler(
-            [this, &ec]
-            {
-                ec = std::error_code(::GetLastError(), std::system_category());
-                std::error_code ignore;
-                close(ignore);
-            });
+        Tools::ScopeExit failExitHandler([this, &ec] {
+            ec = std::error_code(::GetLastError(), std::system_category());
+            std::error_code ignore;
+            close(ignore);
+        });
 
         m_fileHandle = ::CreateFile(
             path.c_str(),

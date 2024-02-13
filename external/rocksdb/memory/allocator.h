@@ -15,7 +15,7 @@
 #include <cstddef>
 #include "rocksdb/write_buffer_manager.h"
 
-namespace ROCKSDB_NAMESPACE {
+namespace rocksdb {
 
 class Logger;
 
@@ -33,10 +33,6 @@ class Allocator {
 class AllocTracker {
  public:
   explicit AllocTracker(WriteBufferManager* write_buffer_manager);
-  // No copying allowed
-  AllocTracker(const AllocTracker&) = delete;
-  void operator=(const AllocTracker&) = delete;
-
   ~AllocTracker();
   void Allocate(size_t bytes);
   // Call when we're finished allocating memory so we can free it from
@@ -52,6 +48,10 @@ class AllocTracker {
   std::atomic<size_t> bytes_allocated_;
   bool done_allocating_;
   bool freed_;
+
+  // No copying allowed
+  AllocTracker(const AllocTracker&);
+  void operator=(const AllocTracker&);
 };
 
-}  // namespace ROCKSDB_NAMESPACE
+}  // namespace rocksdb

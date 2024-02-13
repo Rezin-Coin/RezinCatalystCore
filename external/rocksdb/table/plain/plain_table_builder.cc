@@ -13,39 +13,39 @@
 #include <map>
 
 #include "db/dbformat.h"
-#include "file/writable_file_writer.h"
 #include "rocksdb/comparator.h"
 #include "rocksdb/env.h"
 #include "rocksdb/filter_policy.h"
 #include "rocksdb/options.h"
 #include "rocksdb/table.h"
 #include "table/block_based/block_builder.h"
+#include "table/bloom_block.h"
 #include "table/format.h"
 #include "table/meta_blocks.h"
-#include "table/plain/plain_table_bloom.h"
 #include "table/plain/plain_table_factory.h"
 #include "table/plain/plain_table_index.h"
 #include "util/coding.h"
 #include "util/crc32c.h"
+#include "util/file_reader_writer.h"
 #include "util/stop_watch.h"
 
-namespace ROCKSDB_NAMESPACE {
+namespace rocksdb {
 
 namespace {
 
 // a utility that helps writing block content to the file
 //   @offset will advance if @block_contents was successfully written.
 //   @block_handle the block handle this particular block.
-IOStatus WriteBlock(const Slice& block_contents, WritableFileWriter* file,
-                    uint64_t* offset, BlockHandle* block_handle) {
+Status WriteBlock(const Slice& block_contents, WritableFileWriter* file,
+                  uint64_t* offset, BlockHandle* block_handle) {
   block_handle->set_offset(*offset);
   block_handle->set_size(block_contents.size());
-  IOStatus io_s = file->Append(block_contents);
+  Status s = file->Append(block_contents);
 
-  if (io_s.ok()) {
+  if (s.ok()) {
     *offset += block_contents.size();
   }
-  return io_s;
+  return s;
 }
 
 }  // namespace
@@ -145,45 +145,40 @@ void PlainTableBuilder::Add(const Slice& key, const Slice& value) {
   assert(offset_ <= std::numeric_limits<uint32_t>::max());
   auto prev_offset = static_cast<uint32_t>(offset_);
   // Write out the key
-  io_status_ = encoder_.AppendKey(key, file_, &offset_, meta_bytes_buf,
-                                  &meta_bytes_buf_size);
+  encoder_.AppendKey(key, file_, &offset_, meta_bytes_buf,
+                     &meta_bytes_buf_size);
   if (SaveIndexInFile()) {
     index_builder_->AddKeyPrefix(GetPrefix(internal_key), prev_offset);
   }
 
   // Write value length
   uint32_t value_size = static_cast<uint32_t>(value.size());
-  if (io_status_.ok()) {
-    char* end_ptr =
-        EncodeVarint32(meta_bytes_buf + meta_bytes_buf_size, value_size);
-    assert(end_ptr <= meta_bytes_buf + sizeof(meta_bytes_buf));
-    meta_bytes_buf_size = end_ptr - meta_bytes_buf;
-    io_status_ = file_->Append(Slice(meta_bytes_buf, meta_bytes_buf_size));
-  }
+  char* end_ptr =
+      EncodeVarint32(meta_bytes_buf + meta_bytes_buf_size, value_size);
+  assert(end_ptr <= meta_bytes_buf + sizeof(meta_bytes_buf));
+  meta_bytes_buf_size = end_ptr - meta_bytes_buf;
+  file_->Append(Slice(meta_bytes_buf, meta_bytes_buf_size));
 
   // Write value
-  if (io_status_.ok()) {
-    io_status_ = file_->Append(value);
-    offset_ += value_size + meta_bytes_buf_size;
-  }
+  file_->Append(value);
+  offset_ += value_size + meta_bytes_buf_size;
 
-  if (io_status_.ok()) {
-    properties_.num_entries++;
-    properties_.raw_key_size += key.size();
-    properties_.raw_value_size += value.size();
-    if (internal_key.type == kTypeDeletion ||
-        internal_key.type == kTypeSingleDeletion) {
-      properties_.num_deletions++;
-    } else if (internal_key.type == kTypeMerge) {
-      properties_.num_merge_operands++;
-    }
+  properties_.num_entries++;
+  properties_.raw_key_size += key.size();
+  properties_.raw_value_size += value.size();
+  if (internal_key.type == kTypeDeletion ||
+      internal_key.type == kTypeSingleDeletion) {
+    properties_.num_deletions++;
+  } else if (internal_key.type == kTypeMerge) {
+    properties_.num_merge_operands++;
   }
 
   // notify property collectors
   NotifyCollectTableCollectorsOnAdd(
       key, value, offset_, table_properties_collectors_, ioptions_.info_log);
-  status_ = io_status_;
 }
+
+Status PlainTableBuilder::status() const { return status_; }
 
 Status PlainTableBuilder::Finish() {
   assert(!closed_);
@@ -219,12 +214,10 @@ Status PlainTableBuilder::Finish() {
       Slice bloom_finish_result = bloom_block_.Finish();
 
       properties_.filter_size = bloom_finish_result.size();
-      io_status_ =
-          WriteBlock(bloom_finish_result, file_, &offset_, &bloom_block_handle);
+      s = WriteBlock(bloom_finish_result, file_, &offset_, &bloom_block_handle);
 
-      if (!io_status_.ok()) {
-        status_ = io_status_;
-        return status_;
+      if (!s.ok()) {
+        return s;
       }
       meta_index_builer.Add(BloomBlockBuilder::kBloomBlock, bloom_block_handle);
     }
@@ -232,12 +225,10 @@ Status PlainTableBuilder::Finish() {
     Slice index_finish_result = index_builder_->Finish();
 
     properties_.index_size = index_finish_result.size();
-    io_status_ =
-        WriteBlock(index_finish_result, file_, &offset_, &index_block_handle);
+    s = WriteBlock(index_finish_result, file_, &offset_, &index_block_handle);
 
-    if (!io_status_.ok()) {
-      status_ = io_status_;
-      return status_;
+    if (!s.ok()) {
+      return s;
     }
 
     meta_index_builer.Add(PlainTableIndexBuilder::kPlainTableIndexBlock,
@@ -258,20 +249,27 @@ Status PlainTableBuilder::Finish() {
 
   // -- Write property block
   BlockHandle property_block_handle;
-  IOStatus s = WriteBlock(property_block_builder.Finish(), file_, &offset_,
-                          &property_block_handle);
+  auto s = WriteBlock(
+      property_block_builder.Finish(),
+      file_,
+      &offset_,
+      &property_block_handle
+  );
   if (!s.ok()) {
-    return std::move(s);
+    return s;
   }
   meta_index_builer.Add(kPropertiesBlock, property_block_handle);
 
   // -- write metaindex block
   BlockHandle metaindex_block_handle;
-  io_status_ = WriteBlock(meta_index_builer.Finish(), file_, &offset_,
-                          &metaindex_block_handle);
-  if (!io_status_.ok()) {
-    status_ = io_status_;
-    return status_;
+  s = WriteBlock(
+      meta_index_builer.Finish(),
+      file_,
+      &offset_,
+      &metaindex_block_handle
+  );
+  if (!s.ok()) {
+    return s;
   }
 
   // Write Footer
@@ -281,12 +279,12 @@ Status PlainTableBuilder::Finish() {
   footer.set_index_handle(BlockHandle::NullBlockHandle());
   std::string footer_encoding;
   footer.EncodeTo(&footer_encoding);
-  io_status_ = file_->Append(footer_encoding);
-  if (io_status_.ok()) {
+  s = file_->Append(footer_encoding);
+  if (s.ok()) {
     offset_ += footer_encoding.size();
   }
-  status_ = io_status_;
-  return status_;
+
+  return s;
 }
 
 void PlainTableBuilder::Abandon() {
@@ -301,21 +299,5 @@ uint64_t PlainTableBuilder::FileSize() const {
   return offset_;
 }
 
-std::string PlainTableBuilder::GetFileChecksum() const {
-  if (file_ != nullptr) {
-    return file_->GetFileChecksum();
-  } else {
-    return kUnknownFileChecksum;
-  }
-}
-
-const char* PlainTableBuilder::GetFileChecksumFuncName() const {
-  if (file_ != nullptr) {
-    return file_->GetFileChecksumFuncName();
-  } else {
-    return kUnknownFileChecksumFuncName.c_str();
-  }
-}
-
-}  // namespace ROCKSDB_NAMESPACE
+}  // namespace rocksdb
 #endif  // ROCKSDB_LITE

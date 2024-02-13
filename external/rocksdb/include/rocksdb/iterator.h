@@ -23,15 +23,11 @@
 #include "rocksdb/slice.h"
 #include "rocksdb/status.h"
 
-namespace ROCKSDB_NAMESPACE {
+namespace rocksdb {
 
 class Iterator : public Cleanable {
  public:
   Iterator() {}
-  // No copying allowed
-  Iterator(const Iterator&) = delete;
-  void operator=(const Iterator&) = delete;
-
   virtual ~Iterator() {}
 
   // An iterator is either positioned at a key/value pair, or
@@ -45,7 +41,6 @@ class Iterator : public Cleanable {
 
   // Position at the last key in the source.  The iterator is
   // Valid() after this call iff the source is not empty.
-  // Currently incompatible with user timestamp.
   virtual void SeekToLast() = 0;
 
   // Position at the first key in the source that at or past target.
@@ -54,13 +49,11 @@ class Iterator : public Cleanable {
   // All Seek*() methods clear any error status() that the iterator had prior to
   // the call; after the seek, status() indicates only the error (if any) that
   // happened during the seek, not any past errors.
-  // Target does not contain timestamp.
   virtual void Seek(const Slice& target) = 0;
 
   // Position at the last key in the source that at or before target.
   // The iterator is Valid() after this call iff the source contains
   // an entry that comes at or before target.
-  // Currently incompatible with user timestamp.
   virtual void SeekForPrev(const Slice& target) = 0;
 
   // Moves to the next entry in the source.  After this call, Valid() is
@@ -70,7 +63,6 @@ class Iterator : public Cleanable {
 
   // Moves to the previous entry in the source.  After this call, Valid() is
   // true iff the iterator was not positioned at the first entry in source.
-  // Currently incompatible with user timestamp.
   // REQUIRES: Valid()
   virtual void Prev() = 0;
 
@@ -113,10 +105,10 @@ class Iterator : public Cleanable {
   //   stopped.
   virtual Status GetProperty(std::string prop_name, std::string* prop);
 
-  virtual Slice timestamp() const {
-    assert(false);
-    return Slice();
-  }
+ private:
+  // No copying allowed
+  Iterator(const Iterator&);
+  void operator=(const Iterator&);
 };
 
 // Return an empty iterator (yields nothing).
@@ -125,4 +117,4 @@ extern Iterator* NewEmptyIterator();
 // Return an empty iterator with the specified status.
 extern Iterator* NewErrorIterator(const Status& status);
 
-}  // namespace ROCKSDB_NAMESPACE
+}  // namespace rocksdb

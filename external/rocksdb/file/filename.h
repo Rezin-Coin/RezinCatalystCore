@@ -17,23 +17,16 @@
 
 #include "options/db_options.h"
 #include "port/port.h"
-#include "rocksdb/file_system.h"
 #include "rocksdb/options.h"
 #include "rocksdb/slice.h"
 #include "rocksdb/status.h"
 #include "rocksdb/transaction_log.h"
 
-namespace ROCKSDB_NAMESPACE {
+namespace rocksdb {
 
 class Env;
 class Directory;
 class WritableFileWriter;
-
-#ifdef OS_WIN
-const char kFilePathSeparator = '\\';
-#else
-const char kFilePathSeparator = '/';
-#endif
 
 enum FileType {
   kLogFile,
@@ -169,17 +162,16 @@ extern bool ParseFileName(const std::string& filename, uint64_t* number,
 
 // Make the CURRENT file point to the descriptor file with the
 // specified number.
-extern IOStatus SetCurrentFile(FileSystem* fs, const std::string& dbname,
-                               uint64_t descriptor_number,
-                               FSDirectory* directory_to_fsync);
+extern Status SetCurrentFile(Env* env, const std::string& dbname,
+                             uint64_t descriptor_number,
+                             Directory* directory_to_fsync);
 
 // Make the IDENTITY file for the db
-extern Status SetIdentityFile(Env* env, const std::string& dbname,
-                              const std::string& db_id = {});
+extern Status SetIdentityFile(Env* env, const std::string& dbname);
 
 // Sync manifest file `file`.
-extern IOStatus SyncManifest(Env* env, const ImmutableDBOptions* db_options,
-                             WritableFileWriter* file);
+extern Status SyncManifest(Env* env, const ImmutableDBOptions* db_options,
+                           WritableFileWriter* file);
 
 // Return list of file names of info logs in `file_names`.
 // The list only contains file name. The parent directory name is stored
@@ -189,6 +181,4 @@ extern Status GetInfoLogFiles(Env* env, const std::string& db_log_dir,
                               const std::string& dbname,
                               std::string* parent_dir,
                               std::vector<std::string>* file_names);
-
-extern std::string NormalizePath(const std::string& path);
-}  // namespace ROCKSDB_NAMESPACE
+}  // namespace rocksdb

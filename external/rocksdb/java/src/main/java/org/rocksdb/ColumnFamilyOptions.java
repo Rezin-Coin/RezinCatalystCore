@@ -66,7 +66,7 @@ public class ColumnFamilyOptions extends RocksObject
   /**
    * <p>Constructor to be used by
    * {@link #getColumnFamilyOptionsFromProps(java.util.Properties)},
-   * {@link ColumnFamilyDescriptor#getOptions()}
+   * {@link ColumnFamilyDescriptor#columnFamilyOptions()}
    * and also called via JNI.</p>
    *
    * @param handle native handle to ColumnFamilyOptions instance.
@@ -96,40 +96,20 @@ public class ColumnFamilyOptions extends RocksObject
    */
   public static ColumnFamilyOptions getColumnFamilyOptionsFromProps(
       final Properties properties) {
-    ColumnFamilyOptions columnFamilyOptions = null;
-    final long handle =
-        getColumnFamilyOptionsFromProps(Options.getOptionStringFromProps(properties));
-    if (handle != 0) {
-      columnFamilyOptions = new ColumnFamilyOptions(handle);
+    if (properties == null || properties.size() == 0) {
+      throw new IllegalArgumentException(
+          "Properties value must contain at least one value.");
     }
-    return columnFamilyOptions;
-  }
-
-  /**
-   * <p>Method to get a options instance by using pre-configured
-   * property values. If one or many values are undefined in
-   * the context of RocksDB the method will return a null
-   * value.</p>
-   *
-   * <p><strong>Note</strong>: Property keys can be derived from
-   * getter methods within the options class. Example: the method
-   * {@code writeBufferSize()} has a property key:
-   * {@code write_buffer_size}.</p>
-   *
-   * @param cfgOpts  ConfigOptions controlling how the properties are parsed.
-   * @param properties {@link java.util.Properties} instance.
-   *
-   * @return {@link org.rocksdb.ColumnFamilyOptions instance}
-   *     or null.
-   *
-   * @throws java.lang.IllegalArgumentException if null or empty
-   *     {@link Properties} instance is passed to the method call.
-   */
-  public static ColumnFamilyOptions getColumnFamilyOptionsFromProps(
-      final ConfigOptions cfgOpts, final Properties properties) {
     ColumnFamilyOptions columnFamilyOptions = null;
-    final long handle = getColumnFamilyOptionsFromProps(
-        cfgOpts.nativeHandle_, Options.getOptionStringFromProps(properties));
+    StringBuilder stringBuilder = new StringBuilder();
+    for (final String name : properties.stringPropertyNames()){
+      stringBuilder.append(name);
+      stringBuilder.append("=");
+      stringBuilder.append(properties.getProperty(name));
+      stringBuilder.append(";");
+    }
+    long handle = getColumnFamilyOptionsFromProps(
+        stringBuilder.toString());
     if (handle != 0){
       columnFamilyOptions = new ColumnFamilyOptions(handle);
     }
@@ -190,7 +170,7 @@ public class ColumnFamilyOptions extends RocksObject
 
   @Override
   public ColumnFamilyOptions setComparator(
-      final AbstractComparator comparator) {
+      final AbstractComparator<? extends AbstractSlice<?>> comparator) {
     assert (isOwningHandle());
     setComparatorHandle(nativeHandle_, comparator.nativeHandle_,
             comparator.getComparatorType().getValue());
@@ -845,8 +825,7 @@ public class ColumnFamilyOptions extends RocksObject
   }
 
   private static native long getColumnFamilyOptionsFromProps(
-      final long cfgHandle, String optString);
-  private static native long getColumnFamilyOptionsFromProps(final String optString);
+      String optString);
 
   private static native long newColumnFamilyOptions();
   private static native long copyColumnFamilyOptions(final long handle);
@@ -1010,7 +989,7 @@ public class ColumnFamilyOptions extends RocksObject
   // NOTE: If you add new member variables, please update the copy constructor above!
   private MemTableConfig memTableConfig_;
   private TableFormatConfig tableFormatConfig_;
-  private AbstractComparator comparator_;
+  private AbstractComparator<? extends AbstractSlice<?>> comparator_;
   private AbstractCompactionFilter<? extends AbstractSlice<?>> compactionFilter_;
   private AbstractCompactionFilterFactory<? extends AbstractCompactionFilter<?>>
       compactionFilterFactory_;

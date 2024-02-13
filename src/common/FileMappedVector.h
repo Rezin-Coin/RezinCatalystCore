@@ -12,9 +12,9 @@
 #include <common/FileSystemShim.h>
 #include <crypto/random.h>
 #include <cstdint>
-#include <iostream>
-#include <sstream>
 #include <string>
+#include <sstream>
+#include <iostream>
 
 namespace Common
 {
@@ -55,7 +55,8 @@ namespace Common
             const_iterator(): m_fileMappedVector(nullptr) {}
 
             const_iterator(const FileMappedVector *fileMappedVector, uint64_t index):
-                m_fileMappedVector(fileMappedVector), m_index(index)
+                m_fileMappedVector(fileMappedVector),
+                m_index(index)
             {
             }
 
@@ -552,12 +553,9 @@ namespace Common
 
         if (n > capacity())
         {
-            atomicUpdate(
-                size(),
-                n,
-                prefixSize(),
-                suffixSize(),
-                [this](value_type *target) { std::copy(cbegin(), cend(), target); });
+            atomicUpdate(size(), n, prefixSize(), suffixSize(), [this](value_type *target) {
+                std::copy(cbegin(), cend(), target);
+            });
         }
     }
 
@@ -567,12 +565,9 @@ namespace Common
 
         if (size() < capacity())
         {
-            atomicUpdate(
-                size(),
-                size(),
-                prefixSize(),
-                suffixSize(),
-                [this](value_type *target) { std::copy(cbegin(), cend(), target); });
+            atomicUpdate(size(), size(), prefixSize(), suffixSize(), [this](value_type *target) {
+                std::copy(cbegin(), cend(), target);
+            });
         }
     }
 
@@ -720,16 +715,10 @@ namespace Common
 
         uint64_t newSize = size() - std::distance(first, last);
 
-        atomicUpdate(
-            newSize,
-            capacity(),
-            prefixSize(),
-            suffixSize(),
-            [this, first, last](value_type *target)
-            {
-                std::copy(cbegin(), first, target);
-                std::copy(last, cend(), target + std::distance(cbegin(), first));
-            });
+        atomicUpdate(newSize, capacity(), prefixSize(), suffixSize(), [this, first, last](value_type *target) {
+            std::copy(cbegin(), first, target);
+            std::copy(last, cend(), target + std::distance(cbegin(), first));
+        });
 
         return iterator(this, first.index());
     }
@@ -765,12 +754,7 @@ namespace Common
         }
 
         atomicUpdate(
-            newSize,
-            newCapacity,
-            prefixSize(),
-            suffixSize(),
-            [this, position, first, last](value_type *target)
-            {
+            newSize, newCapacity, prefixSize(), suffixSize(), [this, position, first, last](value_type *target) {
                 std::copy(cbegin(), position, target);
                 std::copy(first, last, target + position.index());
                 std::copy(position, cend(), target + position.index() + std::distance(first, last));
@@ -855,12 +839,9 @@ namespace Common
 
         if (prefixSize() != newPrefixSize)
         {
-            atomicUpdate(
-                size(),
-                capacity(),
-                newPrefixSize,
-                suffixSize(),
-                [this](value_type *target) { std::copy(cbegin(), cend(), target); });
+            atomicUpdate(size(), capacity(), newPrefixSize, suffixSize(), [this](value_type *target) {
+                std::copy(cbegin(), cend(), target);
+            });
         }
     }
 
@@ -891,12 +872,9 @@ namespace Common
 
         if (suffixSize() != newSuffixSize)
         {
-            atomicUpdate(
-                size(),
-                capacity(),
-                prefixSize(),
-                newSuffixSize,
-                [this](value_type *target) { std::copy(cbegin(), cend(), target); });
+            atomicUpdate(size(), capacity(), prefixSize(), newSuffixSize, [this](value_type *target) {
+                std::copy(cbegin(), cend(), target);
+            });
         }
     }
 
@@ -937,11 +915,7 @@ namespace Common
         assert(newSize <= newCapacity);
 
         atomicUpdate0(
-            newCapacity,
-            newPrefixSize,
-            newSuffixSize,
-            [this, newSize, &func](FileMappedVector<T> &newVector)
-            {
+            newCapacity, newPrefixSize, newSuffixSize, [this, newSize, &func](FileMappedVector<T> &newVector) {
                 if (prefixSize() != 0 && newVector.prefixSize() != 0)
                 {
                     std::copy(
@@ -976,7 +950,8 @@ namespace Common
 
         std::stringstream stream;
 
-        stream << std::hex << Random::randomValue<uint64_t>() << Random::randomValue<uint64_t>();
+        stream << std::hex << Random::randomValue<uint64_t>()
+                           << Random::randomValue<uint64_t>();
 
         fs::path tmpPath = fs::path(m_path).parent_path() / stream.str();
 
@@ -985,12 +960,10 @@ namespace Common
             fs::remove(bakPath);
         }
 
-        Tools::ScopeExit tmpFileDeleter(
-            [&tmpPath]
-            {
-                std::error_code ignore;
-                fs::remove(tmpPath, ignore);
-            });
+        Tools::ScopeExit tmpFileDeleter([&tmpPath] {
+            std::error_code ignore;
+            fs::remove(tmpPath, ignore);
+        });
 
         // Copy file. It is slow but atomic operation
         FileMappedVector<T> tmpVector;

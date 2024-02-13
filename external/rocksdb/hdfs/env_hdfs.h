@@ -16,7 +16,7 @@
 #ifdef USE_HDFS
 #include <hdfs.h>
 
-namespace ROCKSDB_NAMESPACE {
+namespace rocksdb {
 
 // Thrown during execution when there is an issue with the supplied
 // arguments.
@@ -100,8 +100,6 @@ class HdfsEnv : public Env {
 
   Status NewLogger(const std::string& fname,
                    std::shared_ptr<Logger>* result) override;
-
-  Status IsDirectory(const std::string& path, bool* is_dir) override;
 
   void Schedule(void (*function)(void* arg), void* arg, Priority pri = LOW,
                 void* tag = nullptr,
@@ -232,11 +230,12 @@ class HdfsEnv : public Env {
   }
 };
 
-}  // namespace ROCKSDB_NAMESPACE
+}  // namespace rocksdb
 
 #else // USE_HDFS
 
-namespace ROCKSDB_NAMESPACE {
+
+namespace rocksdb {
 
 static const Status notsup;
 
@@ -331,10 +330,6 @@ class HdfsEnv : public Env {
     return notsup;
   }
 
-  Status IsDirectory(const std::string& /*path*/, bool* /*is_dir*/) override {
-    return notsup;
-  }
-
   virtual void Schedule(void (* /*function*/)(void* arg), void* /*arg*/,
                         Priority /*pri*/ = LOW, void* /*tag*/ = nullptr,
                         void (* /*unschedFunction*/)(void* arg) = 0) override {}
@@ -385,6 +380,6 @@ class HdfsEnv : public Env {
     return 0;
   }
 };
-}  // namespace ROCKSDB_NAMESPACE
+}
 
 #endif // USE_HDFS

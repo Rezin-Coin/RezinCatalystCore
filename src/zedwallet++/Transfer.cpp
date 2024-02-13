@@ -19,14 +19,15 @@ namespace
 {
     void cancel()
     {
-        std::cout << WarningMsg("Cancelling transaction.\n");
+        std::cout << WarningMsg("Transaction canceled\n\n");
     }
 } // namespace
 
 void transfer(const std::shared_ptr<WalletBackend> walletBackend, const bool sendAll)
 {
-    std::cout << InformationMsg("Note: You can type cancel at any time to "
-                                "cancel the transaction\n\n");
+    std::cout << MagentaMsg("\nNote:\n"
+                            "- You can type 'cancel' at any time to cancel the transaction\n"
+                            "- Payment ID is not required unless asked for. Press enter if no payment ID\n\n");
 
     const bool integratedAddressesAllowed(true), cancelAllowed(true);
 
@@ -36,17 +37,15 @@ void transfer(const std::shared_ptr<WalletBackend> walletBackend, const bool sen
        safely */
     const auto [nodeFee, nodeAddress] = walletBackend->getNodeFee();
 
-
+    
     std::string address =
-        getAddress("What address do you want to transfer to?: ", integratedAddressesAllowed, cancelAllowed);
+        getAddress("Address: ", integratedAddressesAllowed, cancelAllowed);
 
     if (address == "cancel")
     {
         cancel();
         return;
     }
-
-    std::cout << "\n";
 
     std::string paymentID;
 
@@ -63,20 +62,19 @@ void transfer(const std::shared_ptr<WalletBackend> walletBackend, const bool sen
             return;
         }
 
-        std::cout << "\n";
     }
 
     /* If we're using send all, then we'll work out the max in the WalletBackend
      * code, since we need to take into account fee per byte. For now, we'll
      * just set the amount to all balance minus nodeFee. */
     uint64_t amount = unlockedBalance - nodeFee;
-
+    
     if (!sendAll)
     {
         bool success;
 
         std::tie(success, amount) =
-            getAmountToAtomic("How much " + WalletConfig::ticker + " do you want to send?: ", cancelAllowed);
+            getAmountToAtomic("Amount: ", cancelAllowed);
 
         std::cout << "\n";
 
@@ -89,11 +87,10 @@ void transfer(const std::shared_ptr<WalletBackend> walletBackend, const bool sen
 
     if (nodeFee >= unlockedBalance && sendAll)
     {
-        std::cout << WarningMsg("\nYou don't have enough funds to cover "
-                                "this transaction!\n\n")
-                  << "Funds needed: " << InformationMsg(Utilities::formatAmount(nodeFee + WalletConfig::minimumSend))
-                  << " (Includes a node fee of " << InformationMsg(Utilities::formatAmount(nodeFee))
-                  << ")\nFunds available: " << SuccessMsg(Utilities::formatAmount(unlockedBalance)) << "\n\n";
+        std::cout                    << WarningMsg("You don't have enough funds to cover this transaction!\n\n")
+                                     << YellowMsg("Amount Needed:    ") << InformationMsg(Utilities::formatAmount(nodeFee + WalletConfig::minimumSend));
+        if(nodeFee != 0) { std::cout << " (Includes a node fee of " << InformationMsg(Utilities::formatAmount(nodeFee)) << ")"; }
+                           std::cout << YellowMsg("\nAmount Available: ") << SuccessMsg(Utilities::formatAmount(unlockedBalance)) << "\n\n";
 
         cancel();
 
@@ -122,11 +119,10 @@ void sendTransaction(
 
     if (total > unlockedBalance)
     {
-        std::cout << WarningMsg("\nYou don't have enough funds to cover "
-                                "this transaction!\n\n")
-                  << "Funds needed: " << InformationMsg(Utilities::formatAmount(amount + nodeFee))
-                  << " (Includes a node fee of " << InformationMsg(Utilities::formatAmount(nodeFee))
-                  << ")\nFunds available: " << SuccessMsg(Utilities::formatAmount(unlockedBalance)) << "\n\n";
+        std::cout                    << WarningMsg("You don't have enough funds to cover this transaction!\n\n")
+                                     << YellowMsg("Amount Needed:    ") << InformationMsg(Utilities::formatAmount(amount + nodeFee));
+        if(nodeFee != 0) { std::cout << " (Includes a node fee of " << InformationMsg(Utilities::formatAmount(nodeFee)) << ")"; }
+                           std::cout << YellowMsg("\nAmount Available: ") << SuccessMsg(Utilities::formatAmount(unlockedBalance)) << "\n\n";
 
         cancel();
 
@@ -137,20 +133,23 @@ void sendTransaction(
     WalletTypes::PreparedTransactionInfo preparedTransaction;
 
     std::tie(error, std::ignore, preparedTransaction) = walletBackend->sendTransactionBasic(
-        address, amount, paymentID, sendAll, false /* Don't relay to network */
+        address,
+        amount,
+        paymentID,
+        sendAll,
+        false /* Don't relay to network */
     );
 
     if (error == NOT_ENOUGH_BALANCE)
     {
         const uint64_t actualAmount = sendAll ? WalletConfig::minimumSend : amount;
 
-        std::cout << WarningMsg("\nYou don't have enough funds to cover "
-                                "this transaction!\n\n")
-                  << "Funds needed: "
-                  << InformationMsg(Utilities::formatAmount(actualAmount + preparedTransaction.fee + nodeFee))
-                  << " (Includes a network fee of " << InformationMsg(Utilities::formatAmount(preparedTransaction.fee))
-                  << " and a node fee of " << InformationMsg(Utilities::formatAmount(nodeFee))
-                  << ")\nFunds available: " << SuccessMsg(Utilities::formatAmount(unlockedBalance)) << "\n\n";
+        std::cout                    << WarningMsg("You don't have enough funds to cover this transaction!\n\n")    
+                                     << YellowMsg("Amount Needed:    ") << InformationMsg(Utilities::formatAmount(actualAmount + preparedTransaction.fee + nodeFee));
+        std::cout                    << " (Includes a network fee of " << InformationMsg(Utilities::formatAmount(preparedTransaction.fee));
+        if(nodeFee != 0) { std::cout << " and a node fee of " << InformationMsg(Utilities::formatAmount(nodeFee)); }
+        std::cout                    << ")";
+                           std::cout << YellowMsg("\nAmount Available: ") << SuccessMsg(Utilities::formatAmount(unlockedBalance)) << "\n\n";
 
         cancel();
 
@@ -170,15 +169,20 @@ void sendTransaction(
 
         /* Resend the transaction */
         std::tie(error, std::ignore, preparedTransaction) = walletBackend->sendTransactionBasic(
-            address, amount, paymentID, sendAll, false /* Don't relay to network */
+            address,
+            amount,
+            paymentID,
+            sendAll,
+            false /* Don't relay to network */
         );
 
         /* Still too big, split it up (with users approval) */
         if (error == TOO_MANY_INPUTS_TO_FIT_IN_BLOCK)
         {
-            std::cout << WarningMsg("Your transaction is still too large to be accepted "
-                                    "by the network. Try splitting your transaction up into smaller "
-                                    "amounts.");
+            std::cout << WarningMsg(
+                "Your transaction is still too large to be accepted "
+                "by the network. Try splitting your transaction up into smaller "
+                "amounts.");
 
             cancel();
 
@@ -194,7 +198,9 @@ void sendTransaction(
 
     /* Figure out the actual amount if we're performing a send_all now we have
      * the fee worked out. */
-    const uint64_t actualAmount = sendAll ? unlockedBalance - nodeFee - preparedTransaction.fee : amount;
+    const uint64_t actualAmount = sendAll
+        ? unlockedBalance - nodeFee - preparedTransaction.fee
+        : amount;
 
     if (!confirmTransaction(walletBackend, address, actualAmount, paymentID, nodeFee, preparedTransaction.fee))
     {
@@ -212,7 +218,9 @@ void sendTransaction(
     }
     else
     {
-        std::cout << SuccessMsg("Transaction has been sent!\nHash: ") << SuccessMsg(hash) << std::endl;
+        std::cout << SuccessMsg("\nTransaction has been sent!\n")
+                  << WhiteMsg("Hash: ") << SuccessMsg(hash) << "\n"
+                  << WhiteMsg("Link: ") << SuccessMsg("https://explorer.nolanium.xyz/transaction.html?hash=") << SuccessMsg(hash) << "\n" << std::endl;
     }
 }
 
@@ -224,31 +232,26 @@ bool confirmTransaction(
     const uint64_t nodeFee,
     const uint64_t fee)
 {
-    std::cout << InformationMsg("\nConfirm Transaction?\n");
+    std::cout << MagentaMsg("\n[Confirm Transaction]\n");
 
     const uint64_t totalAmount = amount + fee + nodeFee;
 
-    std::cout << "You are sending " << SuccessMsg(Utilities::formatAmount(amount)) << ", with a network fee of "
-              << SuccessMsg(Utilities::formatAmount(fee)) << ",\nand a node fee of "
-              << SuccessMsg(Utilities::formatAmount(nodeFee)) << ", for a total of "
-              << SuccessMsg(Utilities::formatAmount(totalAmount));
+    std::cout <<                    YellowMsg("Sending Amount:  ") << SuccessMsg(Utilities::formatAmount(amount)) << "\n" <<
+                                    YellowMsg("Transaction Fee: ") << SuccessMsg(Utilities::formatAmount(fee))  << "\n";
+    if(nodeFee != 0) { std::cout << YellowMsg("Network Fee:     ") << SuccessMsg(Utilities::formatAmount(nodeFee))  << "\n"; }
+                       std::cout << YellowMsg("Total Amount:    ") << SuccessMsg(Utilities::formatAmount(totalAmount))  << "\n\n";
 
     if (paymentID != "")
     {
-        std::cout << ",\nand a Payment ID of " << SuccessMsg(paymentID);
-    }
-    else
-    {
-        std::cout << ".";
+        std::cout << YellowMsg("Payment ID: ") << SuccessMsg(paymentID) << "\n";
     }
 
-    std::cout << "\n\nFROM: " << SuccessMsg(walletBackend->getWalletLocation()) << "\nTO: " << SuccessMsg(address)
-              << "\n\n";
+    std::cout << YellowMsg("To: ") << SuccessMsg(address) << "\n\n";
 
-    if (Utilities::confirm("Is this correct?"))
+    if (Utilities::confirm("Send this transaction?"))
     {
         /* Use default message */
-        ZedUtilities::confirmPassword(walletBackend, "Confirm your password: ");
+        ZedUtilities::confirmPassword(walletBackend, "Password: ");
         return true;
     }
 

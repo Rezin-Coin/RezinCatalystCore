@@ -222,8 +222,9 @@ namespace Common
         uint64_t maxlen = std::max_element(
                               m_handlers.begin(),
                               m_handlers.end(),
-                              [](CommandHandlersMap::const_reference &a, CommandHandlersMap::const_reference &b)
-                              { return a.first.size() < b.first.size(); })
+                              [](CommandHandlersMap::const_reference &a, CommandHandlersMap::const_reference &b) {
+                                  return a.first.size() < b.first.size();
+                              })
                               ->first.size();
 
         for (auto &x : m_handlers)

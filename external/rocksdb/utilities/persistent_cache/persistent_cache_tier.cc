@@ -8,10 +8,10 @@
 #include "utilities/persistent_cache/persistent_cache_tier.h"
 
 #include <cinttypes>
-#include <sstream>
 #include <string>
+#include <sstream>
 
-namespace ROCKSDB_NAMESPACE {
+namespace rocksdb {
 
 std::string PersistentCacheConfig::ToString() const {
   std::string ret;
@@ -158,6 +158,6 @@ bool PersistentTieredCache::IsCompressed() {
   return tiers_.front()->IsCompressed();
 }
 
-}  // namespace ROCKSDB_NAMESPACE
+}  // namespace rocksdb
 
 #endif

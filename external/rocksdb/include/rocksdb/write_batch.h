@@ -32,7 +32,7 @@
 #include "rocksdb/status.h"
 #include "rocksdb/write_batch_base.h"
 
-namespace ROCKSDB_NAMESPACE {
+namespace rocksdb {
 
 class Slice;
 class ColumnFamilyHandle;
@@ -284,7 +284,7 @@ class WriteBatch : public WriteBatchBase {
   size_t GetDataSize() const { return rep_.size(); }
 
   // Returns the number of updates in the batch
-  uint32_t Count() const;
+  int Count() const;
 
   // Returns true if PutCF will be called during Iterate
   bool HasPut() const;
@@ -374,4 +374,4 @@ class WriteBatch : public WriteBatchBase {
   // Intentionally copyable
 };
 
-}  // namespace ROCKSDB_NAMESPACE
+}  // namespace rocksdb

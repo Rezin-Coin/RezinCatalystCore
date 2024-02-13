@@ -16,7 +16,7 @@
 #include "rocksdb/cache.h"
 #include "util/hash.h"
 
-namespace ROCKSDB_NAMESPACE {
+namespace rocksdb {
 
 // Single cache shard interface.
 class CacheShard {
@@ -40,13 +40,6 @@ class CacheShard {
                                       bool thread_safe) = 0;
   virtual void EraseUnRefEntries() = 0;
   virtual std::string GetPrintableOptions() const { return ""; }
-  void set_metadata_charge_policy(
-      CacheMetadataChargePolicy metadata_charge_policy) {
-    metadata_charge_policy_ = metadata_charge_policy;
-  }
-
- protected:
-  CacheMetadataChargePolicy metadata_charge_policy_ = kDontChargeCacheMetadata;
 };
 
 // Generic cache interface which shards cache by hash of keys. 2^num_shard_bits
@@ -108,4 +101,4 @@ class ShardedCache : public Cache {
 
 extern int GetDefaultCacheShardBits(size_t capacity);
 
-}  // namespace ROCKSDB_NAMESPACE
+}  // namespace rocksdb

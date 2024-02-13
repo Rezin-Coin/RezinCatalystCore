@@ -157,8 +157,7 @@ namespace System
         else
         {
             context = &listenerContext;
-            dispatcher->getCurrentContext()->interruptProcedure = [&]
-            {
+            dispatcher->getCurrentContext()->interruptProcedure = [&] {
                 assert(dispatcher != nullptr);
                 assert(context != nullptr);
                 OperationContext *listenerContext = static_cast<OperationContext *>(context);

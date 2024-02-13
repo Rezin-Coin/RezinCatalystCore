@@ -10,15 +10,14 @@
 #include <string>
 #include <utility>
 #include <vector>
-#include "db/version_edit.h"
 #include "port/port.h"
 #include "rocksdb/status.h"
+#include "table/table_builder.h"
 #include "rocksdb/table.h"
 #include "rocksdb/table_properties.h"
-#include "table/table_builder.h"
 #include "util/autovector.h"
 
-namespace ROCKSDB_NAMESPACE {
+namespace rocksdb {
 
 class CuckooTableBuilder: public TableBuilder {
  public:
@@ -31,9 +30,6 @@ class CuckooTableBuilder: public TableBuilder {
                                                 uint64_t),
                      uint32_t column_family_id,
                      const std::string& column_family_name);
-  // No copying allowed
-  CuckooTableBuilder(const CuckooTableBuilder&) = delete;
-  void operator=(const CuckooTableBuilder&) = delete;
 
   // REQUIRES: Either Finish() or Abandon() has been called.
   ~CuckooTableBuilder() {}
@@ -45,9 +41,6 @@ class CuckooTableBuilder: public TableBuilder {
 
   // Return non-ok iff some error has been detected.
   Status status() const override { return status_; }
-
-  // Return non-ok iff some error happens during IO.
-  IOStatus io_status() const override { return io_status_; }
 
   // Finish building the table.  Stops using the file passed to the
   // constructor after this function returns.
@@ -69,12 +62,6 @@ class CuckooTableBuilder: public TableBuilder {
   uint64_t FileSize() const override;
 
   TableProperties GetTableProperties() const override { return properties_; }
-
-  // Get file checksum
-  std::string GetFileChecksum() const override;
-
-  // Get file checksum function name
-  const char* GetFileChecksumFuncName() const override;
 
  private:
   struct CuckooBucket {
@@ -119,7 +106,6 @@ class CuckooTableBuilder: public TableBuilder {
   // Number of keys that contain value (non-deletion op)
   uint64_t num_values_;
   Status status_;
-  IOStatus io_status_;
   TableProperties properties_;
   const Comparator* ucomp_;
   bool use_module_hash_;
@@ -130,8 +116,12 @@ class CuckooTableBuilder: public TableBuilder {
   std::string smallest_user_key_ = "";
 
   bool closed_;  // Either Finish() or Abandon() has been called.
+
+  // No copying allowed
+  CuckooTableBuilder(const CuckooTableBuilder&) = delete;
+  void operator=(const CuckooTableBuilder&) = delete;
 };
 
-}  // namespace ROCKSDB_NAMESPACE
+}  // namespace rocksdb
 
 #endif  // ROCKSDB_LITE

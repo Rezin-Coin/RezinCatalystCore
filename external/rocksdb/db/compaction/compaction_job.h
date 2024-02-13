@@ -44,7 +44,7 @@
 #include "util/stop_watch.h"
 #include "util/thread_local.h"
 
-namespace ROCKSDB_NAMESPACE {
+namespace rocksdb {
 
 class Arena;
 class ErrorHandler;
@@ -62,23 +62,20 @@ class VersionSet;
 // if needed.
 class CompactionJob {
  public:
-  CompactionJob(int job_id, Compaction* compaction,
-                const ImmutableDBOptions& db_options,
-                const FileOptions& file_options, VersionSet* versions,
-                const std::atomic<bool>* shutting_down,
-                const SequenceNumber preserve_deletes_seqnum,
-                LogBuffer* log_buffer, FSDirectory* db_directory,
-                FSDirectory* output_directory, Statistics* stats,
-                InstrumentedMutex* db_mutex, ErrorHandler* db_error_handler,
-                std::vector<SequenceNumber> existing_snapshots,
-                SequenceNumber earliest_write_conflict_snapshot,
-                const SnapshotChecker* snapshot_checker,
-                std::shared_ptr<Cache> table_cache, EventLogger* event_logger,
-                bool paranoid_file_checks, bool measure_io_stats,
-                const std::string& dbname,
-                CompactionJobStats* compaction_job_stats,
-                Env::Priority thread_pri,
-                const std::atomic<bool>* manual_compaction_paused = nullptr);
+  CompactionJob(
+      int job_id, Compaction* compaction, const ImmutableDBOptions& db_options,
+      const EnvOptions env_options, VersionSet* versions,
+      const std::atomic<bool>* shutting_down,
+      const SequenceNumber preserve_deletes_seqnum, LogBuffer* log_buffer,
+      Directory* db_directory, Directory* output_directory, Statistics* stats,
+      InstrumentedMutex* db_mutex, ErrorHandler* db_error_handler,
+      std::vector<SequenceNumber> existing_snapshots,
+      SequenceNumber earliest_write_conflict_snapshot,
+      const SnapshotChecker* snapshot_checker,
+      std::shared_ptr<Cache> table_cache, EventLogger* event_logger,
+      bool paranoid_file_checks, bool measure_io_stats,
+      const std::string& dbname, CompactionJobStats* compaction_job_stats,
+      Env::Priority thread_pri, SnapshotListFetchCallback* snap_list_callback);
 
   ~CompactionJob();
 
@@ -99,9 +96,6 @@ class CompactionJob {
   // REQUIRED: mutex held
   // Add compaction input/output to the current version
   Status Install(const MutableCFOptions& mutable_cf_options);
-
-  // Return the IO status
-  IOStatus io_status() const { return io_status_; }
 
  private:
   struct SubcompactionState;
@@ -153,19 +147,17 @@ class CompactionJob {
   // DBImpl state
   const std::string& dbname_;
   const ImmutableDBOptions& db_options_;
-  const FileOptions file_options_;
+  const EnvOptions env_options_;
 
   Env* env_;
-  FileSystem* fs_;
   // env_option optimized for compaction table reads
-  FileOptions file_options_for_read_;
+  EnvOptions env_options_for_read_;
   VersionSet* versions_;
   const std::atomic<bool>* shutting_down_;
-  const std::atomic<bool>* manual_compaction_paused_;
   const SequenceNumber preserve_deletes_seqnum_;
   LogBuffer* log_buffer_;
-  FSDirectory* db_directory_;
-  FSDirectory* output_directory_;
+  Directory* db_directory_;
+  Directory* output_directory_;
   Statistics* stats_;
   InstrumentedMutex* db_mutex_;
   ErrorHandler* db_error_handler_;
@@ -174,6 +166,7 @@ class CompactionJob {
   // entirely within s1 and s2, then the earlier version of k1 can be safely
   // deleted because that version is not visible in any snapshot.
   std::vector<SequenceNumber> existing_snapshots_;
+  SnapshotListFetchCallback* snap_list_callback_;
 
   // This is the earliest snapshot that could be used for write-conflict
   // checking by a transaction.  For any user-key newer than this snapshot, we
@@ -196,7 +189,6 @@ class CompactionJob {
   std::vector<uint64_t> sizes_;
   Env::WriteLifeTimeHint write_hint_;
   Env::Priority thread_pri_;
-  IOStatus io_status_;
 };
 
-}  // namespace ROCKSDB_NAMESPACE
+}  // namespace rocksdb

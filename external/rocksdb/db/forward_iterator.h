@@ -17,7 +17,7 @@
 #include "rocksdb/options.h"
 #include "table/internal_iterator.h"
 
-namespace ROCKSDB_NAMESPACE {
+namespace rocksdb {
 
 class DBImpl;
 class Env;
@@ -52,8 +52,7 @@ typedef std::priority_queue<InternalIterator*, std::vector<InternalIterator*>,
 class ForwardIterator : public InternalIterator {
  public:
   ForwardIterator(DBImpl* db, const ReadOptions& read_options,
-                  ColumnFamilyData* cfd, SuperVersion* current_sv = nullptr,
-                  bool allow_unprepared_value = false);
+                  ColumnFamilyData* cfd, SuperVersion* current_sv = nullptr);
   virtual ~ForwardIterator();
 
   void SeekForPrev(const Slice& /*target*/) override {
@@ -76,7 +75,6 @@ class ForwardIterator : public InternalIterator {
   virtual Slice key() const override;
   virtual Slice value() const override;
   virtual Status status() const override;
-  virtual bool PrepareValue() override;
   virtual Status GetProperty(std::string prop_name, std::string* prop) override;
   virtual void SetPinnedItersMgr(
       PinnedIteratorsManager* pinned_iters_mgr) override;
@@ -122,7 +120,6 @@ class ForwardIterator : public InternalIterator {
   ColumnFamilyData* const cfd_;
   const SliceTransform* const prefix_extractor_;
   const Comparator* user_comparator_;
-  const bool allow_unprepared_value_;
   MinIterHeap immutable_min_heap_;
 
   SuperVersion* sv_;
@@ -159,5 +156,5 @@ class ForwardIterator : public InternalIterator {
   Arena arena_;
 };
 
-}  // namespace ROCKSDB_NAMESPACE
+}  // namespace rocksdb
 #endif  // ROCKSDB_LITE

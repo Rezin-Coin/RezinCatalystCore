@@ -11,7 +11,7 @@
 #include <vector>
 #include "db/db_impl/db_impl.h"
 
-namespace ROCKSDB_NAMESPACE {
+namespace rocksdb {
 
 // A wrapper class to hold log reader, log reporter, log status.
 class LogReaderContainer {
@@ -78,8 +78,7 @@ class DBImplSecondary : public DBImpl {
   // and log_readers_ to facilitate future operations.
   Status Recover(const std::vector<ColumnFamilyDescriptor>& column_families,
                  bool read_only, bool error_if_log_file_exist,
-                 bool error_if_data_exists_in_logs,
-                 uint64_t* = nullptr) override;
+                 bool error_if_data_exists_in_logs) override;
 
   // Implementations of the DB interface
   using DB::Get;
@@ -170,24 +169,6 @@ class DBImplSecondary : public DBImpl {
   using DBImpl::Flush;
   Status Flush(const FlushOptions& /*options*/,
                ColumnFamilyHandle* /*column_family*/) override {
-    return Status::NotSupported("Not supported operation in secondary mode.");
-  }
-
-  using DBImpl::SetDBOptions;
-  Status SetDBOptions(const std::unordered_map<std::string, std::string>&
-                      /*options_map*/) override {
-    // Currently not supported because changing certain options may cause
-    // flush/compaction.
-    return Status::NotSupported("Not supported operation in secondary mode.");
-  }
-
-  using DBImpl::SetOptions;
-  Status SetOptions(
-      ColumnFamilyHandle* /*cfd*/,
-      const std::unordered_map<std::string, std::string>& /*options_map*/)
-      override {
-    // Currently not supported because changing certain options may cause
-    // flush/compaction and/or write to MANIFEST.
     return Status::NotSupported("Not supported operation in secondary mode.");
   }
 
@@ -288,14 +269,6 @@ class DBImplSecondary : public DBImpl {
     return s;
   }
 
-  bool OwnTablesAndLogs() const override {
-    // Currently, the secondary instance does not own the database files. It
-    // simply opens the files of the primary instance and tracks their file
-    // descriptors until they become obsolete. In the future, the secondary may
-    // create links to database files. OwnTablesAndLogs will return true then.
-    return false;
-  }
-
  private:
   friend class DB;
 
@@ -328,6 +301,6 @@ class DBImplSecondary : public DBImpl {
   std::unordered_map<ColumnFamilyData*, uint64_t> cfd_to_current_log_;
 };
 
-}  // namespace ROCKSDB_NAMESPACE
+}  // namespace rocksdb
 
 #endif  // !ROCKSDB_LITE

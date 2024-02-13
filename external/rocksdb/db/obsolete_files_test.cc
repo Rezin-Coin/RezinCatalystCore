@@ -14,11 +14,9 @@
 #include <string>
 #include <vector>
 #include "db/db_impl/db_impl.h"
-#include "db/db_test_util.h"
 #include "db/version_set.h"
 #include "db/write_batch_internal.h"
 #include "file/filename.h"
-#include "port/stack_trace.h"
 #include "rocksdb/db.h"
 #include "rocksdb/env.h"
 #include "rocksdb/transaction_log.h"
@@ -32,12 +30,62 @@ using std::cout;
 using std::endl;
 using std::flush;
 
-namespace ROCKSDB_NAMESPACE {
+namespace rocksdb {
 
-class ObsoleteFilesTest : public DBTestBase {
+class ObsoleteFilesTest : public testing::Test {
  public:
-  ObsoleteFilesTest()
-      : DBTestBase("/obsolete_files_test"), wal_dir_(dbname_ + "/wal_files") {}
+  std::string dbname_;
+  Options options_;
+  DB* db_;
+  Env* env_;
+  int numlevels_;
+
+  ObsoleteFilesTest() {
+    db_ = nullptr;
+    env_ = Env::Default();
+    // Trigger compaction when the number of level 0 files reaches 2.
+    options_.level0_file_num_compaction_trigger = 2;
+    options_.disable_auto_compactions = false;
+    options_.delete_obsolete_files_period_micros = 0;  // always do full purge
+    options_.enable_thread_tracking = true;
+    options_.write_buffer_size = 1024*1024*1000;
+    options_.target_file_size_base = 1024*1024*1000;
+    options_.max_bytes_for_level_base = 1024*1024*1000;
+    options_.WAL_ttl_seconds = 300; // Used to test log files
+    options_.WAL_size_limit_MB = 1024; // Used to test log files
+    dbname_ = test::PerThreadDBPath("obsolete_files_test");
+    options_.wal_dir = dbname_ + "/wal_files";
+
+    // clean up all the files that might have been there before
+    std::vector<std::string> old_files;
+    env_->GetChildren(dbname_, &old_files);
+    for (auto file : old_files) {
+      env_->DeleteFile(dbname_ + "/" + file);
+    }
+    env_->GetChildren(options_.wal_dir, &old_files);
+    for (auto file : old_files) {
+      env_->DeleteFile(options_.wal_dir + "/" + file);
+    }
+
+    DestroyDB(dbname_, options_);
+    numlevels_ = 7;
+    EXPECT_OK(ReopenDB(true));
+  }
+
+  Status ReopenDB(bool create) {
+    delete db_;
+    if (create) {
+      DestroyDB(dbname_, options_);
+    }
+    db_ = nullptr;
+    options_.create_if_missing = create;
+    return DB::Open(options_, dbname_, &db_);
+  }
+
+  void CloseDB() {
+    delete db_;
+    db_ = nullptr;
+  }
 
   void AddKeys(int numkeys, int startkey) {
     WriteOptions options;
@@ -50,24 +98,50 @@ class ObsoleteFilesTest : public DBTestBase {
     }
   }
 
+  int numKeysInLevels(
+    std::vector<LiveFileMetaData> &metadata,
+    std::vector<int> *keysperlevel = nullptr) {
+
+    if (keysperlevel != nullptr) {
+      keysperlevel->resize(numlevels_);
+    }
+
+    int numKeys = 0;
+    for (size_t i = 0; i < metadata.size(); i++) {
+      int startkey = atoi(metadata[i].smallestkey.c_str());
+      int endkey = atoi(metadata[i].largestkey.c_str());
+      int numkeysinfile = (endkey - startkey + 1);
+      numKeys += numkeysinfile;
+      if (keysperlevel != nullptr) {
+        (*keysperlevel)[(int)metadata[i].level] += numkeysinfile;
+      }
+      fprintf(stderr, "level %d name %s smallest %s largest %s\n",
+              metadata[i].level, metadata[i].name.c_str(),
+              metadata[i].smallestkey.c_str(),
+              metadata[i].largestkey.c_str());
+    }
+    return numKeys;
+  }
+
   void createLevel0Files(int numFiles, int numKeysPerFile) {
     int startKey = 0;
+    DBImpl* dbi = reinterpret_cast<DBImpl*>(db_);
     for (int i = 0; i < numFiles; i++) {
       AddKeys(numKeysPerFile, startKey);
       startKey += numKeysPerFile;
-      ASSERT_OK(dbfull()->TEST_FlushMemTable());
-      ASSERT_OK(dbfull()->TEST_WaitForFlushMemTable());
+      ASSERT_OK(dbi->TEST_FlushMemTable());
+      ASSERT_OK(dbi->TEST_WaitForFlushMemTable());
     }
   }
 
-  void CheckFileTypeCounts(const std::string& dir, int required_log,
-                           int required_sst, int required_manifest) {
+  void CheckFileTypeCounts(std::string& dir,
+                            int required_log,
+                            int required_sst,
+                            int required_manifest) {
     std::vector<std::string> filenames;
     env_->GetChildren(dir, &filenames);
 
-    int log_cnt = 0;
-    int sst_cnt = 0;
-    int manifest_cnt = 0;
+    int log_cnt = 0, sst_cnt = 0, manifest_cnt = 0;
     for (auto file : filenames) {
       uint64_t number;
       FileType type;
@@ -81,31 +155,9 @@ class ObsoleteFilesTest : public DBTestBase {
     ASSERT_EQ(required_sst, sst_cnt);
     ASSERT_EQ(required_manifest, manifest_cnt);
   }
-
-  void ReopenDB() {
-    Options options = CurrentOptions();
-    // Trigger compaction when the number of level 0 files reaches 2.
-    options.create_if_missing = true;
-    options.level0_file_num_compaction_trigger = 2;
-    options.disable_auto_compactions = false;
-    options.delete_obsolete_files_period_micros = 0;  // always do full purge
-    options.enable_thread_tracking = true;
-    options.write_buffer_size = 1024 * 1024 * 1000;
-    options.target_file_size_base = 1024 * 1024 * 1000;
-    options.max_bytes_for_level_base = 1024 * 1024 * 1000;
-    options.WAL_ttl_seconds = 300;     // Used to test log files
-    options.WAL_size_limit_MB = 1024;  // Used to test log files
-    options.wal_dir = wal_dir_;
-    Destroy(options);
-    Reopen(options);
-  }
-
-  const std::string wal_dir_;
 };
 
 TEST_F(ObsoleteFilesTest, RaceForObsoleteFileDeletion) {
-  ReopenDB();
-  SyncPoint::GetInstance()->DisableProcessing();
   SyncPoint::GetInstance()->LoadDependency({
       {"DBImpl::BackgroundCallCompaction:FoundObsoleteFiles",
        "ObsoleteFilesTest::RaceForObsoleteFileDeletion:1"},
@@ -119,33 +171,35 @@ TEST_F(ObsoleteFilesTest, RaceForObsoleteFileDeletion) {
       });
   SyncPoint::GetInstance()->SetCallBack(
       "DBImpl::CloseHelper:PendingPurgeFinished", [&](void* arg) {
-        std::unordered_set<uint64_t>* files_grabbed_for_purge_ptr =
-            reinterpret_cast<std::unordered_set<uint64_t>*>(arg);
+        std::vector<uint64_t>* files_grabbed_for_purge_ptr =
+            reinterpret_cast<std::vector<uint64_t>*>(arg);
         ASSERT_TRUE(files_grabbed_for_purge_ptr->empty());
       });
   SyncPoint::GetInstance()->EnableProcessing();
 
   createLevel0Files(2, 50000);
-  CheckFileTypeCounts(wal_dir_, 1, 0, 0);
+  CheckFileTypeCounts(options_.wal_dir, 1, 0, 0);
 
-  port::Thread user_thread([this]() {
+  DBImpl* dbi = reinterpret_cast<DBImpl*>(db_);
+  port::Thread user_thread([&]() {
     JobContext jobCxt(0);
     TEST_SYNC_POINT("ObsoleteFilesTest::RaceForObsoleteFileDeletion:1");
-    dbfull()->TEST_LockMutex();
-    dbfull()->FindObsoleteFiles(&jobCxt, true /* force=true */,
-                                false /* no_full_scan=false */);
-    dbfull()->TEST_UnlockMutex();
+    dbi->TEST_LockMutex();
+    dbi->FindObsoleteFiles(&jobCxt,
+      true /* force=true */, false /* no_full_scan=false */);
+    dbi->TEST_UnlockMutex();
     TEST_SYNC_POINT("ObsoleteFilesTest::RaceForObsoleteFileDeletion:2");
-    dbfull()->PurgeObsoleteFiles(jobCxt);
+    dbi->PurgeObsoleteFiles(jobCxt);
     jobCxt.Clean();
   });
 
   user_thread.join();
+
+  CloseDB();
+  SyncPoint::GetInstance()->DisableProcessing();
 }
 
 TEST_F(ObsoleteFilesTest, DeleteObsoleteOptionsFile) {
-  ReopenDB();
-  SyncPoint::GetInstance()->DisableProcessing();
   std::vector<uint64_t> optsfiles_nums;
   std::vector<bool> optsfiles_keep;
   SyncPoint::GetInstance()->SetCallBack(
@@ -159,22 +213,23 @@ TEST_F(ObsoleteFilesTest, DeleteObsoleteOptionsFile) {
   SyncPoint::GetInstance()->EnableProcessing();
 
   createLevel0Files(2, 50000);
-  CheckFileTypeCounts(wal_dir_, 1, 0, 0);
+  CheckFileTypeCounts(options_.wal_dir, 1, 0, 0);
 
-  ASSERT_OK(dbfull()->DisableFileDeletions());
+  DBImpl* dbi = static_cast<DBImpl*>(db_);
+  ASSERT_OK(dbi->DisableFileDeletions());
   for (int i = 0; i != 4; ++i) {
     if (i % 2) {
-      ASSERT_OK(dbfull()->SetOptions(dbfull()->DefaultColumnFamily(),
-                                     {{"paranoid_file_checks", "false"}}));
+      ASSERT_OK(dbi->SetOptions(dbi->DefaultColumnFamily(),
+                                {{"paranoid_file_checks", "false"}}));
     } else {
-      ASSERT_OK(dbfull()->SetOptions(dbfull()->DefaultColumnFamily(),
-                                     {{"paranoid_file_checks", "true"}}));
+      ASSERT_OK(dbi->SetOptions(dbi->DefaultColumnFamily(),
+                                {{"paranoid_file_checks", "true"}}));
     }
   }
-  ASSERT_OK(dbfull()->EnableFileDeletions(true /* force */));
+  ASSERT_OK(dbi->EnableFileDeletions(true /* force */));
   ASSERT_EQ(optsfiles_nums.size(), optsfiles_keep.size());
 
-  Close();
+  CloseDB();
 
   std::vector<std::string> files;
   int opts_file_count = 0;
@@ -191,22 +246,13 @@ TEST_F(ObsoleteFilesTest, DeleteObsoleteOptionsFile) {
     }
   }
   ASSERT_EQ(2, opts_file_count);
+  SyncPoint::GetInstance()->DisableProcessing();
 }
 
-}  // namespace ROCKSDB_NAMESPACE
-
-#ifdef ROCKSDB_UNITTESTS_WITH_CUSTOM_OBJECTS_FROM_STATIC_LIBS
-extern "C" {
-void RegisterCustomObjects(int argc, char** argv);
-}
-#else
-void RegisterCustomObjects(int /*argc*/, char** /*argv*/) {}
-#endif  // !ROCKSDB_UNITTESTS_WITH_CUSTOM_OBJECTS_FROM_STATIC_LIBS
+} //namespace rocksdb
 
 int main(int argc, char** argv) {
-  ROCKSDB_NAMESPACE::port::InstallStackTraceHandler();
   ::testing::InitGoogleTest(&argc, argv);
-  RegisterCustomObjects(argc, argv);
   return RUN_ALL_TESTS();
 }
 

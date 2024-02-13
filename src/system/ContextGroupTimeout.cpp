@@ -13,18 +13,17 @@ ContextGroupTimeout::ContextGroupTimeout(
     Dispatcher &dispatcher,
     ContextGroup &contextGroup,
     std::chrono::nanoseconds timeout):
-    workingContextGroup(dispatcher), timeoutTimer(dispatcher)
+    workingContextGroup(dispatcher),
+    timeoutTimer(dispatcher)
 {
-    workingContextGroup.spawn(
-        [&, timeout]
+    workingContextGroup.spawn([&, timeout] {
+        try
         {
-            try
-            {
-                timeoutTimer.sleep(timeout);
-                contextGroup.interrupt();
-            }
-            catch (InterruptedException &)
-            {
-            }
-        });
+            timeoutTimer.sleep(timeout);
+            contextGroup.interrupt();
+        }
+        catch (InterruptedException &)
+        {
+        }
+    });
 }

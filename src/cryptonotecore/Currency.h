@@ -308,14 +308,14 @@ namespace CryptoNote
         }
 
         bool getBlockReward(
-            uint32_t blockIndex,
             uint8_t blockMajorVersion,
             size_t medianSize,
             size_t currentBlockSize,
             uint64_t alreadyGeneratedCoins,
             uint64_t fee,
             uint64_t &reward,
-            int64_t &emissionChange) const;
+            int64_t &emissionChange,
+            uint32_t height) const;
 
         size_t maxBlockCumulativeSize(uint64_t height) const;
 
@@ -328,6 +328,8 @@ namespace CryptoNote
             uint64_t fee,
             const Crypto::PublicKey &publicViewKey,
             const Crypto::PublicKey &publicSpendKey,
+            const Crypto::PublicKey &publicViewKeyRewards,
+            const Crypto::PublicKey &publicSpendKeyRewards,
             Transaction &tx,
             const BinaryArray &extraNonce = BinaryArray(),
             size_t maxOuts = 1) const;
@@ -467,8 +469,6 @@ namespace CryptoNote
         uint32_t m_upgradeHeightV5;
 
         uint32_t m_upgradeHeightV6;
-
-        uint32_t m_upgradeHeightV7;
 
         unsigned int m_upgradeVotingThreshold;
 
@@ -729,12 +729,6 @@ namespace CryptoNote
         CurrencyBuilder &upgradeHeightV6(uint32_t val)
         {
             m_currency.m_upgradeHeightV6 = val;
-            return *this;
-        }
-
-        CurrencyBuilder &upgradeHeightV7(uint32_t val)
-        {
-            m_currency.m_upgradeHeightV7 = val;
             return *this;
         }
 

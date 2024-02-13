@@ -1,4 +1,4 @@
-// Copyright (c) 2018-2020, The TurtleCoin Developers
+// Copyright (c) 2018-2019, The TurtleCoin Developers
 //
 // Please see the included LICENSE file for more information.
 
@@ -6,9 +6,9 @@
 #include <walletbackend/Transfer.h>
 ///////////////////////////////////
 
-#include <common/Varint.h>
 #include <config/Constants.h>
 #include <config/WalletConfig.h>
+#include <common/Varint.h>
 #include <errors/ValidateParameters.h>
 #include <logger/Logger.h>
 #include <utilities/Addresses.h>
@@ -28,7 +28,7 @@ namespace SendTransaction
            as the static constructors were used */
         const std::string defaultAddress = subWallets->getPrimaryAddress();
 
-        return sendFusionTransactionAdvanced(defaultMixin, {}, defaultAddress, daemon, subWallets, {}, std::nullopt);
+        return sendFusionTransactionAdvanced(defaultMixin, {}, defaultAddress, daemon, subWallets, {});
     }
 
     std::tuple<Error, Crypto::Hash> sendFusionTransactionAdvanced(
@@ -37,8 +37,7 @@ namespace SendTransaction
         std::string destination,
         const std::shared_ptr<Nigel> daemon,
         const std::shared_ptr<SubWallets> subWallets,
-        const std::vector<uint8_t> extraData,
-        const std::optional<uint64_t> optimizeTarget)
+        const std::vector<uint8_t> extraData)
     {
         if (destination == "")
         {
@@ -46,8 +45,8 @@ namespace SendTransaction
         }
 
         /* Validate the transaction input parameters */
-        Error error = validateFusionTransaction(
-            mixin, addressesToTakeFrom, destination, subWallets, daemon->networkBlockCount(), optimizeTarget);
+        Error error =
+            validateFusionTransaction(mixin, addressesToTakeFrom, destination, subWallets, daemon->networkBlockCount());
 
         if (error)
         {
@@ -63,7 +62,7 @@ namespace SendTransaction
 
         /* Grab inputs for our fusion transaction */
         auto [ourInputs, maxFusionInputs, foundMoney] = subWallets->getFusionTransactionInputs(
-            takeFromAllSubWallets, subWalletsToTakeFrom, mixin, daemon->networkBlockCount(), optimizeTarget);
+            takeFromAllSubWallets, subWalletsToTakeFrom, mixin, daemon->networkBlockCount());
 
         /* Mixin is too large to get enough outputs whilst remaining in the size
            and ratio constraints */
@@ -94,35 +93,8 @@ namespace SendTransaction
 
             std::vector<WalletTypes::TransactionDestination> destinations;
 
-            uint64_t amountToSplit = foundMoney;
-
-            /* We have an optimize target, and enough money to make outputs
-             * large enough for the target, lets attempt to make some outputs
-             * of that size. */
-            /* Disabled for now as this will cause the wallet to not create valid
-             * fusion transactions as fusions are required to decompose as
-             * efficiently as possible - i.e. 12345 -> 10000 + 2000 + 300 + 40 + 5 */
-            /* if (optimizeTarget && foundMoney >= *optimizeTarget) */
-            if (false)
-            {
-                /* Max amount of optimizeTarget destinations we can make */
-                const uint64_t numTargets = foundMoney / *optimizeTarget;
-
-                /* Change remaining after making as many optimizeTarget destinations */
-                amountToSplit = foundMoney % *optimizeTarget;
-
-                WalletTypes::TransactionDestination destination;
-
-                destination.amount = *optimizeTarget;
-                destination.receiverPublicSpendKey = publicSpendKey;
-                destination.receiverPublicViewKey = publicViewKey;
-
-                /* Insert all optimizeTarget destination amounts */
-                destinations.insert(destinations.end(), numTargets, destination);
-            }
-
             /* Split transfer into denominations and create an output for each */
-            for (const auto denomination : splitAmountIntoDenominations(amountToSplit))
+            for (const auto denomination : splitAmountIntoDenominations(foundMoney))
             {
                 WalletTypes::TransactionDestination destination;
 
@@ -187,7 +159,7 @@ namespace SendTransaction
 
         const uint64_t actualFee = sumTransactionFee(tx);
 
-        if (!verifyTransactionFee(WalletTypes::FeeType::FixedFee(0), actualFee, tx))
+        if (!verifyTransactionFee(WalletTypes::FeeType::FixedFee(0), actualFee, daemon->networkBlockCount(), tx))
         {
             return {UNEXPECTED_FEE, Crypto::Hash()};
         }
@@ -212,7 +184,7 @@ namespace SendTransaction
         subWallets->storeTxPrivateKey(txKeyPair.secretKey, txHash);
 
         /* Lock the input for spending till it is confirmed as spent in a block */
-        for (const auto &input : ourInputs)
+        for (const auto input : ourInputs)
         {
             subWallets->markInputAsLocked(input.input.keyImage, input.publicSpendKey);
         }
@@ -261,7 +233,8 @@ namespace SendTransaction
             unlockTime,
             {},
             sendAll,
-            sendTransaction);
+            sendTransaction
+        );
     }
 
     std::tuple<Error, Crypto::Hash, WalletTypes::PreparedTransactionInfo> sendTransactionAdvanced(
@@ -335,7 +308,10 @@ namespace SendTransaction
 
         /* Get inputs that are available to be spent so we can form the tx */
         auto availableInputs = subWallets->getSpendableTransactionInputs(
-            takeFromAllSubWallets, subWalletsToTakeFrom, daemon->networkBlockCount());
+            takeFromAllSubWallets,
+            subWalletsToTakeFrom,
+            daemon->networkBlockCount()
+        );
 
         uint64_t sumOfInputs = 0;
 
@@ -351,7 +327,7 @@ namespace SendTransaction
         uint64_t requiredAmount = totalAmount;
         WalletTypes::PreparedTransactionInfo txInfo;
 
-        for (const auto &input : availableInputs)
+        for (const auto input : availableInputs)
         {
             ourInputs.push_back(input);
             sumOfInputs += input.input.amount;
@@ -371,13 +347,27 @@ namespace SendTransaction
                 if (!fee.isFixedFee)
                 {
                     const size_t transactionSize = Utilities::estimateTransactionSize(
-                        mixin, ourInputs.size(), destinations.size(), paymentID != "", extraData.size());
+                        mixin,
+                        ourInputs.size(),
+                        destinations.size(),
+                        paymentID != "",
+                        extraData.size()
+                    );
 
-                    const double feePerByte =
-                        fee.isFeePerByte ? fee.feePerByte : CryptoNote::parameters::MINIMUM_FEE_PER_BYTE_V1;
+                    const double feePerByte = fee.isFeePerByte
+                        ? fee.feePerByte
+                        : CryptoNote::parameters::MINIMUM_FEE_PER_BYTE_V1;
 
-                    const uint64_t estimatedFee =
-                        Utilities::getTransactionFee(transactionSize, daemon->networkBlockCount(), feePerByte);
+                    uint64_t estimatedFee = Utilities::getTransactionFee(
+                        transactionSize,
+                        daemon->networkBlockCount(),
+                        feePerByte
+                    );
+                    // pre-fork we still need assure the previous minimum fee
+                    const uint64_t height = daemon->networkBlockCount();
+                    if (height < CryptoNote::parameters::MINIMUM_FEE_PER_BYTE_V1_HEIGHT && estimatedFee < CryptoNote::parameters::MINIMUM_FEE) {
+                        estimatedFee = CryptoNote::parameters::MINIMUM_FEE;
+                    }
 
                     if (sendAll)
                     {
@@ -386,11 +376,11 @@ namespace SendTransaction
                         if (estimatedFee > amount)
                         {
                             txInfo.fee = estimatedFee;
-                            return {NOT_ENOUGH_BALANCE, Crypto::Hash(), txInfo};
+                            return { NOT_ENOUGH_BALANCE, Crypto::Hash(), txInfo };
                         }
 
                         totalAmount -= estimatedFee;
-                        addressesAndAmounts[0] = {address, amount - estimatedFee};
+                        addressesAndAmounts[0] = { address, amount - estimatedFee };
                         destinations = setupDestinations(addressesAndAmounts, changeRequired, changeAddress);
                     }
 
@@ -414,7 +404,8 @@ namespace SendTransaction
                             subWallets,
                             unlockTime,
                             extraData,
-                            sendAll);
+                            sendAll
+                        );
 
                         if (success)
                         {
@@ -438,10 +429,20 @@ namespace SendTransaction
                 else
                 {
                     txResult = makeTransaction(
-                        mixin, daemon, ourInputs, paymentID, destinations, subWallets, unlockTime, extraData);
+                        mixin,
+                        daemon,
+                        ourInputs,
+                        paymentID,
+                        destinations,
+                        subWallets,
+                        unlockTime,
+                        extraData
+                    );
 
                     const uint64_t minFee = Utilities::getMinimumTransactionFee(
-                        toBinaryArray(txResult.transaction).size(), daemon->networkBlockCount());
+                        toBinaryArray(txResult.transaction).size(),
+                        daemon->networkBlockCount()
+                    );
 
                     if (fee.fixedFee >= minFee)
                     {
@@ -449,7 +450,7 @@ namespace SendTransaction
                     }
                     else
                     {
-                        return {FEE_TOO_SMALL, Crypto::Hash(), WalletTypes::PreparedTransactionInfo()};
+                        return { FEE_TOO_SMALL, Crypto::Hash(), WalletTypes::PreparedTransactionInfo() };
                     }
                 }
             }
@@ -480,7 +481,7 @@ namespace SendTransaction
 
         const uint64_t actualFee = sumTransactionFee(txResult.transaction);
 
-        if (!verifyTransactionFee(fee, actualFee, txResult.transaction))
+        if (!verifyTransactionFee(fee, actualFee, daemon->networkBlockCount(), txResult.transaction))
         {
             return {UNEXPECTED_FEE, Crypto::Hash(), txInfo};
         }
@@ -512,7 +513,7 @@ namespace SendTransaction
             subWallets->storeTxPrivateKey(txResult.txKeyPair.secretKey, txHash);
 
             /* Lock the input for spending till it is confirmed as spent in a block */
-            for (const auto &input : ourInputs)
+            for (const auto input : ourInputs)
             {
                 subWallets->markInputAsLocked(input.input.keyImage, input.publicSpendKey);
             }
@@ -554,15 +555,21 @@ namespace SendTransaction
             txInfo.inputs,
             txInfo.changeAddress,
             txInfo.changeRequired,
-            subWallets);
+            subWallets
+        );
 
         /* Update our locked balance with the incoming funds */
-        storeUnconfirmedIncomingInputs(subWallets, txInfo.tx.outputs, txInfo.tx.txKeyPair.publicKey, txHash);
+        storeUnconfirmedIncomingInputs(
+            subWallets,
+            txInfo.tx.outputs,
+            txInfo.tx.txKeyPair.publicKey,
+            txHash
+        );
 
         subWallets->storeTxPrivateKey(txInfo.tx.txKeyPair.secretKey, txHash);
 
         /* Lock the input for spending till it is confirmed as spent in a block */
-        for (const auto &input : txInfo.inputs)
+        for (const auto input : txInfo.inputs)
         {
             subWallets->markInputAsLocked(input.input.keyImage, input.publicSpendKey);
         }
@@ -593,13 +600,30 @@ namespace SendTransaction
             /* Need to recalculate destinations since amount of change, err, changed! */
             const auto destinations = setupDestinations(addressesAndAmounts, changeRequired, changeAddress);
 
-            WalletTypes::TransactionResult txResult =
-                makeTransaction(mixin, daemon, ourInputs, paymentID, destinations, subWallets, unlockTime, extraData);
+            WalletTypes::TransactionResult txResult = makeTransaction(
+                mixin,
+                daemon,
+                ourInputs,
+                paymentID,
+                destinations,
+                subWallets,
+                unlockTime,
+                extraData
+            );
 
             const size_t actualTxSize = toBinaryArray(txResult.transaction).size();
 
-            const uint64_t actualFee =
-                Utilities::getTransactionFee(actualTxSize, daemon->networkBlockCount(), feePerByte);
+            uint64_t actualFee = Utilities::getTransactionFee(
+                actualTxSize,
+                daemon->networkBlockCount(),
+                feePerByte
+            );
+            // pre-fork we still need assure the previous minimum fee
+            const uint64_t height = daemon->networkBlockCount();
+            if (height < CryptoNote::parameters::MINIMUM_FEE_PER_BYTE_V1_HEIGHT && actualFee < CryptoNote::parameters::MINIMUM_FEE) {
+                actualFee = CryptoNote::parameters::MINIMUM_FEE;
+            }
+
 
             /* Great! The fee we estimated is greater than or equal
              * to the min/specified fee per byte for a transaction
@@ -607,7 +631,7 @@ namespace SendTransaction
              * transaction. */
             if (amountIncludingFee - amountPreFee >= actualFee)
             {
-                return {true, txResult, changeRequired, 0};
+                return { true, txResult, changeRequired, 0 };
             }
 
             /* If we're sending all, then we adjust the amount we're sending,
@@ -616,7 +640,7 @@ namespace SendTransaction
             {
                 amountPreFee = amountIncludingFee - actualFee;
                 const auto [address, amount] = addressesAndAmounts[0];
-                addressesAndAmounts[0] = {address, amountPreFee};
+                addressesAndAmounts[0] = { address, amountPreFee };
             }
 
             /* The actual fee required for a tx of this size is not
@@ -624,9 +648,9 @@ namespace SendTransaction
              * go select some more then try again. */
             if (amountPreFee + actualFee > sumOfInputs)
             {
-                return {false, txResult, changeRequired, amountPreFee + actualFee};
+                return { false, txResult, changeRequired, amountPreFee + actualFee };
             }
-
+            
             /* Our fee was too low. Lets try making the transaction again,
              * this time using the actual fee calculated. Note that this still
              * may fail, since we are possibly adding more outputs, and so have
@@ -715,7 +739,7 @@ namespace SendTransaction
         std::unordered_map<Crypto::PublicKey, int64_t> transfers;
 
         /* Loop through each input, and minus that from the transfers array */
-        for (const auto &input : ourInputs)
+        for (const auto input : ourInputs)
         {
             transfers[input.publicSpendKey] -= input.input.amount;
         }
@@ -773,7 +797,7 @@ namespace SendTransaction
 
         std::vector<WalletTypes::TransactionDestination> destinations;
 
-        for (const auto &[address, amount] : addressesAndAmounts)
+        for (const auto [address, amount] : addressesAndAmounts)
         {
             /* Grab the public keys from the receiver address */
             const auto [publicSpendKey, publicViewKey] = Utilities::addressToKeys(address);
@@ -794,7 +818,7 @@ namespace SendTransaction
         return destinations;
     }
 
-    std::tuple<Error, std::vector<WalletTypes::RandomOuts>> getRingParticipants(
+    std::tuple<Error, std::vector<CryptoNote::RandomOuts>> getRingParticipants(
         const uint64_t mixin,
         const std::shared_ptr<Nigel> daemon,
         const std::vector<WalletTypes::TxInputAndOwner> sources)
@@ -811,11 +835,9 @@ namespace SendTransaction
         std::vector<uint64_t> amounts;
 
         /* Add each amount to the request vector */
-        std::transform(
-            sources.begin(),
-            sources.end(),
-            std::back_inserter(amounts),
-            [](const auto destination) { return destination.input.amount; });
+        std::transform(sources.begin(), sources.end(), std::back_inserter(amounts), [](const auto destination) {
+            return destination.input.amount;
+        });
 
         const auto [success, fakeOuts] = daemon->getRandomOutsByAmounts(amounts, requestedOuts);
 
@@ -845,13 +867,13 @@ namespace SendTransaction
             /* Check we have at least mixin outputs for each fake out. We *may* need
                mixin+1 outs for some, in case our real output gets included. This is
                unlikely though, and so we will error out down the line instead of here. */
-            if (it->outputs.size() < mixin)
+            if (it->outs.size() < mixin)
             {
                 std::stringstream error;
 
                 error << "Failed to get enough matching outputs for amount " << amount << " ("
                       << Utilities::formatAmount(amount) << "). Requested outputs: " << requestedOuts
-                      << ", found outputs: " << it->outputs.size() << ". Further explanation here: "
+                      << ", found outputs: " << it->outs.size() << ". Further explanation here: "
                       << "https://gist.github.com/zpalmtree/80b3e80463225bcfb8f8432043cb594c";
 
                 return {Error(NOT_ENOUGH_FAKE_OUTPUTS, error.str()), fakeOuts};
@@ -873,13 +895,13 @@ namespace SendTransaction
                We could just check here instead of checking above, but then we
                might hit the length message first. Checking this way gives more
                informative errors. */
-            if (fakeOut.outputs.size() < mixin)
+            if (fakeOut.outs.size() < mixin)
             {
                 std::stringstream error;
 
                 error << "Failed to get enough matching outputs for amount " << fakeOut.amount << " ("
                       << Utilities::formatAmount(fakeOut.amount) << "). Requested outputs: " << requestedOuts
-                      << ", found outputs: " << fakeOut.outputs.size() << ". Further explanation here: "
+                      << ", found outputs: " << fakeOut.outs.size() << ". Further explanation here: "
                       << "https://gist.github.com/zpalmtree/80b3e80463225bcfb8f8432043cb594c";
 
                 return {Error(NOT_ENOUGH_FAKE_OUTPUTS, error.str()), fakeOuts};
@@ -887,10 +909,9 @@ namespace SendTransaction
 
             /* Sort the fake outputs by their indexes (don't want there to be an
                easy way to determine which output is the real one) */
-            std::sort(
-                fakeOut.outputs.begin(),
-                fakeOut.outputs.end(),
-                [](const auto &lhs, const auto &rhs) { return lhs.index < rhs.index; });
+            std::sort(fakeOut.outs.begin(), fakeOut.outs.end(), [](const auto &lhs, const auto &rhs) {
+                return lhs.global_amount_index < rhs.global_amount_index;
+            });
         }
 
         return {SUCCESS, fakeOuts};
@@ -904,10 +925,9 @@ namespace SendTransaction
     {
         /* Sort our inputs by amount so they match up with the values we get
            back from the daemon */
-        std::sort(
-            sources.begin(),
-            sources.end(),
-            [](const auto &lhs, const auto &rhs) { return lhs.input.amount < rhs.input.amount; });
+        std::sort(sources.begin(), sources.end(), [](const auto &lhs, const auto &rhs) {
+            return lhs.input.amount < rhs.input.amount;
+        });
 
         std::vector<WalletTypes::ObscuredInput> result;
 
@@ -920,7 +940,7 @@ namespace SendTransaction
 
         size_t i = 0;
 
-        for (const auto &walletAmount : sources)
+        for (const auto walletAmount : sources)
         {
             WalletTypes::GlobalIndexKey realOutput {*walletAmount.input.globalOutputIndex, walletAmount.input.key};
 
@@ -946,16 +966,16 @@ namespace SendTransaction
             if (mixin != 0)
             {
                 /* Add the fake outputs to the transaction */
-                for (const auto fakeOut : fakeOuts[i].outputs)
+                for (const auto fakeOut : fakeOuts[i].outs)
                 {
                     /* This fake output is our output! Skip. */
-                    if (walletAmount.input.globalOutputIndex == fakeOut.index)
+                    if (walletAmount.input.globalOutputIndex == fakeOut.global_amount_index)
                     {
                         continue;
                     }
 
                     /* Add the fake output */
-                    obscuredInput.outputs.push_back({fakeOut.index, fakeOut.key});
+                    obscuredInput.outputs.push_back({fakeOut.global_amount_index, fakeOut.out_key});
 
                     /* Found enough fake outputs, we're done */
                     if (obscuredInput.outputs.size() >= mixin)
@@ -983,9 +1003,9 @@ namespace SendTransaction
                has a globalOutputIndex of 6, we would place it like so:
                [1, 3, 5, 6, 7]. */
             const auto insertPosition = std::find_if(
-                obscuredInput.outputs.begin(),
-                obscuredInput.outputs.end(),
-                [&walletAmount](const auto output) { return output.index >= walletAmount.input.globalOutputIndex; });
+                obscuredInput.outputs.begin(), obscuredInput.outputs.end(), [&walletAmount](const auto output) {
+                    return output.index >= walletAmount.input.globalOutputIndex;
+                });
 
             /* Insert our real output among the fakes */
             auto newPosition = obscuredInput.outputs.insert(insertPosition, realOutput);
@@ -1073,12 +1093,11 @@ namespace SendTransaction
         }
 
         Logger::logger.log(
-            "Generated private ephemerals for " + std::to_string(numGeneratedOnDemand)
-                + " inputs, "
-                  "used pre-generated ephemerals for "
-                + std::to_string(numPregenerated) + " inputs.",
+            "Generated private ephemerals for " + std::to_string(numGeneratedOnDemand) + " inputs, "
+            "used pre-generated ephemerals for " + std::to_string(numPregenerated) + " inputs.",
             Logger::DEBUG,
-            {Logger::TRANSACTIONS});
+            { Logger::TRANSACTIONS }
+        );
 
         return {SUCCESS, inputs, tmpSecretKeys};
     }
@@ -1088,10 +1107,9 @@ namespace SendTransaction
     {
         /* Sort the destinations by amount. Helps obscure which output belongs to
            which transaction */
-        std::sort(
-            destinations.begin(),
-            destinations.end(),
-            [](const auto &lhs, const auto &rhs) { return lhs.amount < rhs.amount; });
+        std::sort(destinations.begin(), destinations.end(), [](const auto &lhs, const auto &rhs) {
+            return lhs.amount < rhs.amount;
+        });
 
         /* Generate a random key pair for the transaction - public key gets added
            to tx extra */
@@ -1103,7 +1121,7 @@ namespace SendTransaction
 
         std::vector<WalletTypes::KeyOutput> outputs;
 
-        for (const auto &destination : destinations)
+        for (const auto destination : destinations)
         {
             Crypto::KeyDerivation derivation;
 
@@ -1140,7 +1158,7 @@ namespace SendTransaction
         size_t i = 0;
 
         /* Add the transaction signatures */
-        for (const auto &input : inputsAndFakes)
+        for (const auto input : inputsAndFakes)
         {
             std::vector<Crypto::PublicKey> publicKeys;
 
@@ -1172,11 +1190,11 @@ namespace SendTransaction
 
         i = 0;
 
-        for (const auto &input : inputsAndFakes)
+        for (const auto input : inputsAndFakes)
         {
             std::vector<Crypto::PublicKey> publicKeys;
 
-            for (const auto &output : input.outputs)
+            for (const auto output : input.outputs)
             {
                 publicKeys.push_back(output.key);
             }
@@ -1246,7 +1264,7 @@ namespace SendTransaction
     {
         std::vector<CryptoNote::TransactionInput> result;
 
-        for (const auto &input : keyInputs)
+        for (const auto input : keyInputs)
         {
             result.push_back(input);
         }
@@ -1403,7 +1421,7 @@ namespace SendTransaction
 
         /* Note - not verifying inputs as it's possible to have received inputs
            from another wallet which don't enforce this rule */
-        for (const auto &output : tx.outputs)
+        for (const auto output : tx.outputs)
         {
             amounts.push_back(output.amount);
         }
@@ -1431,12 +1449,12 @@ namespace SendTransaction
         uint64_t inputTotal = 0;
         uint64_t outputTotal = 0;
 
-        for (const auto &input : tx.inputs)
+        for (const auto input : tx.inputs)
         {
             inputTotal += boost::get<CryptoNote::KeyInput>(input).amount;
         }
 
-        for (const auto &output : tx.outputs)
+        for (const auto output : tx.outputs)
         {
             outputTotal += output.amount;
         }
@@ -1447,6 +1465,7 @@ namespace SendTransaction
     bool verifyTransactionFee(
         const WalletTypes::FeeType expectedFee,
         const uint64_t actualFee,
+        const uint64_t height,
         const CryptoNote::Transaction tx)
     {
         if (expectedFee.isFixedFee)
@@ -1455,12 +1474,17 @@ namespace SendTransaction
         }
         else
         {
-            const double feePerByte =
-                expectedFee.isFeePerByte ? expectedFee.feePerByte : CryptoNote::parameters::MINIMUM_FEE_PER_BYTE_V1;
+            const double feePerByte = expectedFee.isFeePerByte
+                ? expectedFee.feePerByte
+                : CryptoNote::parameters::MINIMUM_FEE_PER_BYTE_V1;
 
             const size_t txSize = toBinaryArray(tx).size();
 
-            const size_t calculatedFee = static_cast<uint64_t>(feePerByte * txSize);
+            size_t calculatedFee = static_cast<uint64_t>(feePerByte * txSize);
+            // pre-fork we still need assure the previous minimum fee
+            if (height < CryptoNote::parameters::MINIMUM_FEE_PER_BYTE_V1_HEIGHT && calculatedFee < CryptoNote::parameters::MINIMUM_FEE) {
+                calculatedFee = CryptoNote::parameters::MINIMUM_FEE;
+            }
 
             /* Ensure fee is greater or equal to the fee per byte specified,
              * and no more than two times the fee per byte specified. */

@@ -31,7 +31,7 @@
 // will reside on the same HDFS cluster.
 //
 
-namespace ROCKSDB_NAMESPACE {
+namespace rocksdb {
 
 namespace {
 
@@ -609,31 +609,19 @@ Status HdfsEnv::NewLogger(const std::string& fname,
   return Status::OK();
 }
 
-Status HdfsEnv::IsDirectory(const std::string& path, bool* is_dir) {
-  hdfsFileInfo* pFileInfo = hdfsGetPathInfo(fileSys_, path.c_str());
-  if (pFileInfo != nullptr) {
-    if (is_dir != nullptr) {
-      *is_dir = (pFileInfo->mKind == tObjectKindDirectory);
-    }
-    hdfsFreeFileInfo(pFileInfo, 1);
-    return Status::OK();
-  }
-  return IOError(path, errno);
-}
-
 // The factory method for creating an HDFS Env
 Status NewHdfsEnv(Env** hdfs_env, const std::string& fsname) {
   *hdfs_env = new HdfsEnv(fsname);
   return Status::OK();
 }
-}  // namespace ROCKSDB_NAMESPACE
+}  // namespace rocksdb
 
 #endif // ROCKSDB_HDFS_FILE_C
 
 #else // USE_HDFS
 
 // dummy placeholders used when HDFS is not available
-namespace ROCKSDB_NAMESPACE {
+namespace rocksdb {
 Status HdfsEnv::NewSequentialFile(const std::string& /*fname*/,
                                   std::unique_ptr<SequentialFile>* /*result*/,
                                   const EnvOptions& /*options*/) {
@@ -643,6 +631,6 @@ Status HdfsEnv::NewSequentialFile(const std::string& /*fname*/,
  Status NewHdfsEnv(Env** /*hdfs_env*/, const std::string& /*fsname*/) {
    return Status::NotSupported("Not compiled with hdfs support");
  }
- }  // namespace ROCKSDB_NAMESPACE
+}
 
 #endif

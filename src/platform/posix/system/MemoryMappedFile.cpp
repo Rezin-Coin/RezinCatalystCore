@@ -68,13 +68,11 @@ namespace System
             }
         }
 
-        Tools::ScopeExit failExitHandler(
-            [this, &ec]
-            {
-                ec = std::error_code(errno, std::system_category());
-                std::error_code ignore;
-                close(ignore);
-            });
+        Tools::ScopeExit failExitHandler([this, &ec] {
+            ec = std::error_code(errno, std::system_category());
+            std::error_code ignore;
+            close(ignore);
+        });
 
         m_file = ::open(path.c_str(), O_RDWR | O_CREAT | (overwrite ? O_TRUNC : O_EXCL), S_IRUSR | S_IWUSR);
         if (m_file == -1)
@@ -123,13 +121,11 @@ namespace System
             }
         }
 
-        Tools::ScopeExit failExitHandler(
-            [this, &ec]
-            {
-                ec = std::error_code(errno, std::system_category());
-                std::error_code ignore;
-                close(ignore);
-            });
+        Tools::ScopeExit failExitHandler([this, &ec] {
+            ec = std::error_code(errno, std::system_category());
+            std::error_code ignore;
+            close(ignore);
+        });
 
         m_file = ::open(path.c_str(), O_RDWR, S_IRUSR | S_IWUSR);
         if (m_file == -1)

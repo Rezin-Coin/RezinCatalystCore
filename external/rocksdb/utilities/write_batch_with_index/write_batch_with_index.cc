@@ -22,7 +22,7 @@
 #include "util/string_util.h"
 #include "utilities/write_batch_with_index/write_batch_with_index_internal.h"
 
-namespace ROCKSDB_NAMESPACE {
+namespace rocksdb {
 
 // when direction == forward
 // * current_at_base_ <=> base_iterator > delta_iterator
@@ -33,17 +33,14 @@ namespace ROCKSDB_NAMESPACE {
 class BaseDeltaIterator : public Iterator {
  public:
   BaseDeltaIterator(Iterator* base_iterator, WBWIIterator* delta_iterator,
-                    const Comparator* comparator,
-                    const ReadOptions* read_options = nullptr)
+                    const Comparator* comparator)
       : forward_(true),
         current_at_base_(true),
         equal_keys_(false),
         status_(Status::OK()),
         base_iterator_(base_iterator),
         delta_iterator_(delta_iterator),
-        comparator_(comparator),
-        iterate_upper_bound_(read_options ? read_options->iterate_upper_bound
-                                          : nullptr) {}
+        comparator_(comparator) {}
 
   ~BaseDeltaIterator() override {}
 
@@ -282,13 +279,6 @@ class BaseDeltaIterator : public Iterator {
           // Finished
           return;
         }
-        if (iterate_upper_bound_) {
-          if (comparator_->Compare(delta_entry.key, *iterate_upper_bound_) >=
-              0) {
-            // out of upper bound -> finished.
-            return;
-          }
-        }
         if (delta_entry.type == kDeleteRecord ||
             delta_entry.type == kSingleDeleteRecord) {
           AdvanceDelta();
@@ -336,7 +326,6 @@ class BaseDeltaIterator : public Iterator {
   std::unique_ptr<Iterator> base_iterator_;
   std::unique_ptr<WBWIIterator> delta_iterator_;
   const Comparator* comparator_;  // not owned
-  const Slice* iterate_upper_bound_;
 };
 
 typedef SkipList<WriteBatchIndexEntry*, const WriteBatchEntryComparator&>
@@ -579,7 +568,7 @@ Status WriteBatchWithIndex::Rep::ReBuildIndex() {
   input.remove_prefix(offset);
 
   // Loop through all entries in Rep and add each one to the index
-  uint32_t found = 0;
+  int found = 0;
   while (s.ok() && !input.empty()) {
     Slice key, value, blob, xid;
     uint32_t column_family_id = 0;  // default
@@ -658,15 +647,13 @@ WBWIIterator* WriteBatchWithIndex::NewIterator(
 }
 
 Iterator* WriteBatchWithIndex::NewIteratorWithBase(
-    ColumnFamilyHandle* column_family, Iterator* base_iterator,
-    const ReadOptions* read_options) {
+    ColumnFamilyHandle* column_family, Iterator* base_iterator) {
   if (rep->overwrite_key == false) {
     assert(false);
     return nullptr;
   }
   return new BaseDeltaIterator(base_iterator, NewIterator(column_family),
-                               GetColumnFamilyUserComparator(column_family),
-                               read_options);
+                               GetColumnFamilyUserComparator(column_family));
 }
 
 Iterator* WriteBatchWithIndex::NewIteratorWithBase(Iterator* base_iterator) {
@@ -732,6 +719,27 @@ Status WriteBatchWithIndex::SingleDelete(const Slice& key) {
   auto s = rep->write_batch.SingleDelete(key);
   if (s.ok()) {
     rep->AddOrUpdateIndex(key);
+  }
+  return s;
+}
+
+Status WriteBatchWithIndex::DeleteRange(ColumnFamilyHandle* column_family,
+                                        const Slice& begin_key,
+                                        const Slice& end_key) {
+  rep->SetLastEntryOffset();
+  auto s = rep->write_batch.DeleteRange(column_family, begin_key, end_key);
+  if (s.ok()) {
+    rep->AddOrUpdateIndex(column_family, begin_key);
+  }
+  return s;
+}
+
+Status WriteBatchWithIndex::DeleteRange(const Slice& begin_key,
+                                        const Slice& end_key) {
+  rep->SetLastEntryOffset();
+  auto s = rep->write_batch.DeleteRange(begin_key, end_key);
+  if (s.ok()) {
+    rep->AddOrUpdateIndex(begin_key);
   }
   return s;
 }
@@ -846,7 +854,8 @@ Status WriteBatchWithIndex::GetFromBatchAndDB(
   Status s;
   MergeContext merge_context;
   const ImmutableDBOptions& immuable_db_options =
-      static_cast_with_check<DBImpl>(db->GetRootDB())->immutable_db_options();
+      static_cast_with_check<DBImpl, DB>(db->GetRootDB())
+          ->immutable_db_options();
 
   // Since the lifetime of the WriteBatch is the same as that of the transaction
   // we cannot pin it as otherwise the returned value will not be available
@@ -886,7 +895,7 @@ Status WriteBatchWithIndex::GetFromBatchAndDB(
     get_impl_options.column_family = column_family;
     get_impl_options.value = pinnable_val;
     get_impl_options.callback = callback;
-    s = static_cast_with_check<DBImpl>(db->GetRootDB())
+    s = static_cast_with_check<DBImpl, DB>(db->GetRootDB())
             ->GetImpl(read_options, key, get_impl_options);
   }
 
@@ -908,12 +917,9 @@ Status WriteBatchWithIndex::GetFromBatchAndDB(
       }
 
       if (merge_operator) {
-        std::string merge_result;
-        s = MergeHelper::TimedFullMerge(merge_operator, key, merge_data,
-                                        merge_context.GetOperands(),
-                                        &merge_result, logger, statistics, env);
-        pinnable_val->Reset();
-        *pinnable_val->GetSelf() = std::move(merge_result);
+        s = MergeHelper::TimedFullMerge(
+            merge_operator, key, merge_data, merge_context.GetOperands(),
+            pinnable_val->GetSelf(), logger, statistics, env);
         pinnable_val->PinSelf();
       } else {
         s = Status::InvalidArgument("Options::merge_operator must be set");
@@ -937,10 +943,10 @@ void WriteBatchWithIndex::MultiGetFromBatchAndDB(
     const size_t num_keys, const Slice* keys, PinnableSlice* values,
     Status* statuses, bool sorted_input, ReadCallback* callback) {
   const ImmutableDBOptions& immuable_db_options =
-      static_cast_with_check<DBImpl>(db->GetRootDB())->immutable_db_options();
+      static_cast_with_check<DBImpl, DB>(db->GetRootDB())
+          ->immutable_db_options();
 
   autovector<KeyContext, MultiGetContext::MAX_BATCH_SIZE> key_context;
-  autovector<KeyContext*, MultiGetContext::MAX_BATCH_SIZE> sorted_keys;
   // To hold merges from the write batch
   autovector<std::pair<WriteBatchWithIndexInternal::Result, MergeContext>,
              MultiGetContext::MAX_BATCH_SIZE>
@@ -980,21 +986,14 @@ void WriteBatchWithIndex::MultiGetFromBatchAndDB(
 
     assert(result == WriteBatchWithIndexInternal::Result::kMergeInProgress ||
            result == WriteBatchWithIndexInternal::Result::kNotFound);
-    key_context.emplace_back(column_family, keys[i], &values[i],
-                             /*timestamp*/ nullptr, &statuses[i]);
+    key_context.emplace_back(keys[i], &values[i], &statuses[i]);
     merges.emplace_back(result, std::move(merge_context));
   }
 
-  for (KeyContext& key : key_context) {
-    sorted_keys.emplace_back(&key);
-  }
-
   // Did not find key in batch OR could not resolve Merges.  Try DB.
-  static_cast_with_check<DBImpl>(db->GetRootDB())
-      ->PrepareMultiGetKeys(key_context.size(), sorted_input, &sorted_keys);
-  static_cast_with_check<DBImpl>(db->GetRootDB())
-      ->MultiGetWithCallback(read_options, column_family, callback,
-                             &sorted_keys);
+  static_cast_with_check<DBImpl, DB>(db->GetRootDB())
+      ->MultiGetImpl(read_options, column_family, key_context, sorted_input,
+                     callback);
 
   ColumnFamilyHandleImpl* cfh =
       reinterpret_cast<ColumnFamilyHandleImpl*>(column_family);
@@ -1060,5 +1059,5 @@ size_t WriteBatchWithIndex::GetDataSize() const {
   return rep->write_batch.GetDataSize();
 }
 
-}  // namespace ROCKSDB_NAMESPACE
+}  // namespace rocksdb
 #endif  // !ROCKSDB_LITE

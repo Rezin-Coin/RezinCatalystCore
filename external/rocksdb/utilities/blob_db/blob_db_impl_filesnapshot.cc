@@ -13,7 +13,7 @@
 
 // BlobDBImpl methods to get snapshot of files, e.g. for replication.
 
-namespace ROCKSDB_NAMESPACE {
+namespace rocksdb {
 namespace blob_db {
 
 Status BlobDBImpl::DisableFileDeletions() {
@@ -32,7 +32,7 @@ Status BlobDBImpl::DisableFileDeletions() {
   }
 
   ROCKS_LOG_INFO(db_options_.info_log,
-                 "Disabled blob file deletions. count: %d", count);
+                 "Disalbed blob file deletions. count: %d", count);
   return Status::OK();
 }
 
@@ -94,10 +94,9 @@ void BlobDBImpl::GetLiveFilesMetaData(std::vector<LiveFileMetaData>* metadata) {
     auto blob_file = bfile_pair.second;
     LiveFileMetaData filemetadata;
     filemetadata.size = static_cast<size_t>(blob_file->GetFileSize());
-    const uint64_t file_number = blob_file->BlobFileNumber();
     // Path should be relative to db_name, but begin with slash.
-    filemetadata.name = BlobFileName("", bdb_options_.blob_dir, file_number);
-    filemetadata.file_number = file_number;
+    filemetadata.name =
+        BlobFileName("", bdb_options_.blob_dir, blob_file->BlobFileNumber());
     auto cfh = reinterpret_cast<ColumnFamilyHandleImpl*>(DefaultColumnFamily());
     filemetadata.column_family_name = cfh->GetName();
     metadata->emplace_back(filemetadata);
@@ -105,5 +104,5 @@ void BlobDBImpl::GetLiveFilesMetaData(std::vector<LiveFileMetaData>* metadata) {
 }
 
 }  // namespace blob_db
-}  // namespace ROCKSDB_NAMESPACE
+}  // namespace rocksdb
 #endif  // !ROCKSDB_LITE
