@@ -13,7 +13,7 @@ else ()
     set (CMAKE_BUILD_TYPE Release CACHE STRING "Choose the type of build, options are: Debug, Release, RelWithDebInfo")
 endif ()
 
-set(CMAKE_CONFIGURATION_TYPES Debug RelWithDebInfo Release CACHE TYPE INTERNAL)
+set(CMAKE_CONFIGURATION_TYPES Debug RelWithDebInfo Release CACHE TYPE STRING INTERNAL)
 set(ARCH native CACHE STRING "CPU to build for: -march value or native")
 set(WITH_LEVELDB OFF CACHE STRING "Enable LevelDB")
 
