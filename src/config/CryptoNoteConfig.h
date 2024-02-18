@@ -76,7 +76,7 @@ namespace CryptoNote
     /* This is the unix timestamp of the first "mined" block (technically block 2, not the genesis block)
        You can get this value by doing "print_block 2" in RezinCatalystCored. It is used to know what timestamp
        to import from when the block height cannot be found in the node or the node is offline. */
-    const uint64_t GENESIS_BLOCK_TIMESTAMP                                 = 1704803400;                    /* 01:30 PM GMT+1, 9th of January 2024 */
+    const uint64_t GENESIS_BLOCK_TIMESTAMP                                 = 0;                    /* 01:30 PM GMT+1, 9th of January 2024 */
     const size_t   CRYPTONOTE_REWARD_BLOCKS_WINDOW                         = 100;
     const size_t   CRYPTONOTE_BLOCK_GRANTED_FULL_REWARD_ZONE               = 100000;                        /* size of block (bytes) after which reward for block calculated using block size */
     const size_t   CRYPTONOTE_BLOCK_GRANTED_FULL_REWARD_ZONE_V2            = 20000;
@@ -169,9 +169,9 @@ namespace CryptoNote
     /* For new projects forked from this code base, the values immediately below
        should be changed to 0 to prevent issues with transaction processing
        and other possible unexpected behavior */
-    const uint64_t TRANSACTION_SIGNATURE_COUNT_VALIDATION_HEIGHT           = 250;
-    const uint64_t BLOCK_BLOB_SHUFFLE_CHECK_HEIGHT                         = 250;
-    const uint64_t TRANSACTION_INPUT_BLOCKTIME_VALIDATION_HEIGHT           = 250;
+    const uint64_t TRANSACTION_SIGNATURE_COUNT_VALIDATION_HEIGHT           = 0;
+    const uint64_t BLOCK_BLOB_SHUFFLE_CHECK_HEIGHT                         = 0;
+    const uint64_t TRANSACTION_INPUT_BLOCKTIME_VALIDATION_HEIGHT           = 0;
 
     /* This describes how many blocks of "wiggle" room transactions have regarding
        when the outputs can be spent based on a reasonable belief that the outputs
@@ -194,16 +194,16 @@ namespace CryptoNote
     const size_t   FUSION_TX_MAX_POOL_COUNT                                = 20;
     const size_t   NORMAL_TX_MAX_OUTPUT_COUNT_V1                           = 90;
     const size_t   NORMAL_TX_MAX_OUTPUT_COUNT_V1_HEIGHT                    = 250;
-    const uint32_t UPGRADE_HEIGHT_V2                                       = 1; 
+    const uint32_t UPGRADE_HEIGHT_V2                                       = 1;
     const uint32_t UPGRADE_HEIGHT_V3                                       = 2;
-    const uint32_t UPGRADE_HEIGHT_V4                                       = 3; 
+    const uint32_t UPGRADE_HEIGHT_V4                                       = 3;
     const uint32_t UPGRADE_HEIGHT_V5                                       = 4;
     const uint32_t UPGRADE_HEIGHT_V6                                       = 5;
     const uint32_t UPGRADE_HEIGHT_CURRENT                                  = UPGRADE_HEIGHT_V6;
     const unsigned UPGRADE_VOTING_THRESHOLD                                = 90;
     const uint32_t UPGRADE_VOTING_WINDOW                                   = EXPECTED_NUMBER_OF_BLOCKS_PER_DAY;
     const uint32_t UPGRADE_WINDOW                                          = EXPECTED_NUMBER_OF_BLOCKS_PER_DAY;
-    
+
     static_assert(0 < UPGRADE_VOTING_THRESHOLD && UPGRADE_VOTING_THRESHOLD <= 100, "Bad UPGRADE_VOTING_THRESHOLD");
     static_assert(UPGRADE_VOTING_WINDOW > 1, "Bad UPGRADE_VOTING_WINDOW");
 
@@ -216,7 +216,7 @@ namespace CryptoNote
     };
 
     /* MAKE SURE TO UPDATE THIS VALUE WITH EVERY MAJOR RELEASE BEFORE A FORK - Count from 0 */
-    const uint64_t SOFTWARE_SUPPORTED_FORK_INDEX                           = 3;
+    const uint64_t SOFTWARE_SUPPORTED_FORK_INDEX                           = 0;
     const uint64_t FORK_HEIGHTS_SIZE                                       = sizeof(FORK_HEIGHTS) / sizeof(*FORK_HEIGHTS);
     const uint8_t  CURRENT_FORK_INDEX                                      = FORK_HEIGHTS_SIZE == 0 ? 0 : SOFTWARE_SUPPORTED_FORK_INDEX;
     //static_assert(CURRENT_FORK_INDEX >= 0, "CURRENT FORK INDEX must be >= 0");
@@ -246,12 +246,12 @@ namespace CryptoNote
 
   const std::unordered_map<uint8_t, std::function<void(const void *data, size_t length, Crypto::Hash &hash)>>
     HASHING_ALGORITHMS_BY_BLOCK_VERSION = {
-      {BLOCK_MAJOR_VERSION_1, Crypto::cn_turtle_lite_slow_hash_v2},    /* Height 1 */
-      {BLOCK_MAJOR_VERSION_2, Crypto::cn_turtle_lite_slow_hash_v2},    /* UPGRADE_HEIGHT_V2 */
-      {BLOCK_MAJOR_VERSION_3, Crypto::cn_turtle_lite_slow_hash_v2},    /* UPGRADE_HEIGHT_V3 */
-      {BLOCK_MAJOR_VERSION_4, Crypto::cn_turtle_lite_slow_hash_v2},    /* UPGRADE_HEIGHT_V4 */
-      {BLOCK_MAJOR_VERSION_5, Crypto::cn_turtle_lite_slow_hash_v2},    /* UPGRADE_HEIGHT_V5 */
-      {BLOCK_MAJOR_VERSION_6, Crypto::cn_turtle_lite_slow_hash_v2}     /* UPGRADE_HEIGHT_V6 */
+      {BLOCK_MAJOR_VERSION_1, Crypto::cn_lite_slow_hash_v2},    /* Height 1 */
+      {BLOCK_MAJOR_VERSION_2, Crypto::cn_lite_slow_hash_v2},    /* UPGRADE_HEIGHT_V2 */
+      {BLOCK_MAJOR_VERSION_3, Crypto::cn_lite_slow_hash_v2},    /* UPGRADE_HEIGHT_V3 */
+      {BLOCK_MAJOR_VERSION_4, Crypto::cn_lite_slow_hash_v2},    /* UPGRADE_HEIGHT_V4 */
+      {BLOCK_MAJOR_VERSION_5, Crypto::cn_lite_slow_hash_v2},    /* UPGRADE_HEIGHT_V5 */
+      {BLOCK_MAJOR_VERSION_6, Crypto::cn_lite_slow_hash_v2}     /* UPGRADE_HEIGHT_V6 */
     };
 
 
