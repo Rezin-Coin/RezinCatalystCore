@@ -66,8 +66,7 @@ namespace CryptoNote
     static_assert(EMISSION_SPEED_FACTOR <= 8 * sizeof(uint64_t), "Bad EMISSION_SPEED_FACTOR");
     static_assert(EMISSION_SPEED_FACTOR_V2 <= 8 * sizeof(uint64_t), "Bad EMISSION_SPEED_FACTOR_V2");
 
-    const char GENESIS_COINBASE_TX_HEX[] = 
-      "012801ff00018088debe01029b2e4c0281c0b02e7c53291a94d1d0cbff8883f8024f5142ee494ffbbd0880712101e541af7b9dde3aa3c314bd065326a3083c0188d22c988ceec61913940154484d";
+    const char GENESIS_COINBASE_TX_HEX[] = "012801ff00018088debe01029b2e4c0281c0b02e7c53291a94d1d0cbff8883f8024f5142ee494ffbbd0880712101ceeefe3f82d521b787d7ee81f2d782a2525f59f3d6a1afb49325d725c6ce76b7";
 
     static_assert(
       sizeof(GENESIS_COINBASE_TX_HEX) / sizeof(*GENESIS_COINBASE_TX_HEX) != 1,
@@ -76,7 +75,7 @@ namespace CryptoNote
     /* This is the unix timestamp of the first "mined" block (technically block 2, not the genesis block)
        You can get this value by doing "print_block 2" in RezinCatalystCored. It is used to know what timestamp
        to import from when the block height cannot be found in the node or the node is offline. */
-    const uint64_t GENESIS_BLOCK_TIMESTAMP                                 = 0;                    /* 01:30 PM GMT+1, 9th of January 2024 */
+    const uint64_t GENESIS_BLOCK_TIMESTAMP                                 = 1708409722;                    /* 01:30 PM GMT+1, 9th of January 2024 */
     const size_t   CRYPTONOTE_REWARD_BLOCKS_WINDOW                         = 100;
     const size_t   CRYPTONOTE_BLOCK_GRANTED_FULL_REWARD_ZONE               = 100000;                        /* size of block (bytes) after which reward for block calculated using block size */
     const size_t   CRYPTONOTE_BLOCK_GRANTED_FULL_REWARD_ZONE_V2            = 20000;
@@ -169,9 +168,9 @@ namespace CryptoNote
     /* For new projects forked from this code base, the values immediately below
        should be changed to 0 to prevent issues with transaction processing
        and other possible unexpected behavior */
-    const uint64_t TRANSACTION_SIGNATURE_COUNT_VALIDATION_HEIGHT           = 0;
-    const uint64_t BLOCK_BLOB_SHUFFLE_CHECK_HEIGHT                         = 0;
-    const uint64_t TRANSACTION_INPUT_BLOCKTIME_VALIDATION_HEIGHT           = 0;
+    const uint64_t TRANSACTION_SIGNATURE_COUNT_VALIDATION_HEIGHT           = 250;
+    const uint64_t BLOCK_BLOB_SHUFFLE_CHECK_HEIGHT                         = 250;
+    const uint64_t TRANSACTION_INPUT_BLOCKTIME_VALIDATION_HEIGHT           = 250;
 
     /* This describes how many blocks of "wiggle" room transactions have regarding
        when the outputs can be spent based on a reasonable belief that the outputs
@@ -216,7 +215,7 @@ namespace CryptoNote
     };
 
     /* MAKE SURE TO UPDATE THIS VALUE WITH EVERY MAJOR RELEASE BEFORE A FORK - Count from 0 */
-    const uint64_t SOFTWARE_SUPPORTED_FORK_INDEX                           = 0;
+    const uint64_t SOFTWARE_SUPPORTED_FORK_INDEX                           = 3;
     const uint64_t FORK_HEIGHTS_SIZE                                       = sizeof(FORK_HEIGHTS) / sizeof(*FORK_HEIGHTS);
     const uint8_t  CURRENT_FORK_INDEX                                      = FORK_HEIGHTS_SIZE == 0 ? 0 : SOFTWARE_SUPPORTED_FORK_INDEX;
     //static_assert(CURRENT_FORK_INDEX >= 0, "CURRENT FORK INDEX must be >= 0");
@@ -304,6 +303,6 @@ namespace CryptoNote
 
   const char *const SEED_NODES[] = {
     "192.168.0.119:21000",
-    "192.168.0.112:21100"
+    "192.168.0.62:21100"
   };
 }
