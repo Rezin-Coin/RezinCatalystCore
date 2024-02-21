@@ -31,19 +31,19 @@ namespace CryptoNote
     const size_t   BLOCKCHAIN_TIMESTAMP_CHECK_WINDOW                       = 60;
     const size_t   BLOCKCHAIN_TIMESTAMP_CHECK_WINDOW_V3                    = 11;
 
-    const uint64_t MONEY_SUPPLY                                            = UINT64_C(1'000'000'000'000'00);   /* 80'000'000 RZCC */
-    const uint64_t BLOCK_REWARD                                            = UINT64_C(4'00000000);            /* Miner Reward: 4.00000000 RZCC */
-    const uint64_t GENESIS_BLOCK_REWARD                                    = UINT64_C(800'000'00000000);      /* Premine Reward: 800'000.00000000 RZCC (1%) */
+    const uint64_t MONEY_SUPPLY                                            = UINT64_C(1'000'000'000'000);   /* 80'000'000 RZCC */
+    const uint64_t BLOCK_REWARD                                            = UINT64_C(400'000);            /* Miner Reward: 4.00000000 RZCC */
+    const uint64_t GENESIS_BLOCK_REWARD                                    = UINT64_C(100'000'000'000);      /* Premine Reward: 800'000.00000000 RZCC (1%) */
 
-    const uint64_t BLOCK_REWARD_P2                                         = UINT64_C(2'00000000);            /* Miner Reward: 2.00000000 RZCC */
-    const uint64_t MASTERNODE_BLOCK_REWARD_P2                              = UINT64_C(3'00000000);            /* Masternode Reward: 3.00000000 RZCC (75%) */
-    const uint64_t STAKING_BLOCK_REWARD_P2                                 = UINT64_C(1'00000000);            /* Staking Reward: 1.00000000 RZCC (25%) */
+    const uint64_t BLOCK_REWARD_P2                                         = UINT64_C(200'000);            /* Miner Reward: 2.00000000 RZCC */
+    const uint64_t MASTERNODE_BLOCK_REWARD_P2                              = UINT64_C(300'000);            /* Masternode Reward: 3.00000000 RZCC (75%) */
+    const uint64_t STAKING_BLOCK_REWARD_P2                                 = UINT64_C(100'000);            /* Staking Reward: 1.00000000 RZCC (25%) */
 
-    const uint64_t BLOCK_REWARD_P3                                         = UINT64_C(2'00000000);            /* Miner Reward: 2.00000000 RZCC */
-    const uint64_t MASTERNODE_BLOCK_REWARD_P3                              = UINT64_C(4'00000000);            /* Masternode Reward: 4.00000000 RZCC (75%) */
-    const uint64_t STAKING_BLOCK_REWARD_P3                                 = UINT64_C(2'00000000);            /* Staking Reward: 2.00000000 RZCC (25%) */
+    const uint64_t BLOCK_REWARD_P3                                         = UINT64_C(200'000);            /* Miner Reward: 2.00000000 RZCC */
+    const uint64_t MASTERNODE_BLOCK_REWARD_P3                              = UINT64_C(400'000);            /* Masternode Reward: 4.00000000 RZCC (75%) */
+    const uint64_t STAKING_BLOCK_REWARD_P3                                 = UINT64_C(200'000);            /* Staking Reward: 2.00000000 RZCC (25%) */
     
-    const uint64_t PON_BLOCK_REWARD                                        = UINT64_C(1'00000000);            /* PoN Reward: 1.00000000 RZCC */
+    const uint64_t PON_BLOCK_REWARD                                        = UINT64_C(100'000);            /* PoN Reward: 1.00000000 RZCC */
 
     const uint32_t MASTERNODE_ENABLE_HEIGHT                                = 259200;                          /* Masternodes (Phase 2) will start at height 259,200 */
     const uint32_t STAKING_ENABLE_HEIGHT                                   = MASTERNODE_ENABLE_HEIGHT;        /* Staking (Phase 2) will start at height 259,200 */
@@ -67,16 +67,16 @@ namespace CryptoNote
     static_assert(EMISSION_SPEED_FACTOR_V2 <= 8 * sizeof(uint64_t), "Bad EMISSION_SPEED_FACTOR_V2");
 
     const char GENESIS_COINBASE_TX_HEX[] = 
-      "012801ff00018088debe01029b2e4c0281c0b02e7c53291a94d1d0cbff8883f8024f5142ee494ffbbd0880712101e541af7b9dde3aa3c314bd065326a3083c0188d22c988ceec61913940154484d";
+      "012801ff000180b518029b2e4c0281c0b02e7c53291a94d1d0cbff8883f8024f5142ee494ffbbd0880712101075194da6d752c8a4a32762d7c3d2292cd58646238353463d3e807e236a738b2";
 
     static_assert(
-      sizeof(GENESIS_COINBASE_TX_HEX) / sizeof(*GENESIS_COINBASE_TX_HEX) != 1,
-      "GENESIS_COINBASE_TX_HEX must not be empty.");
+        sizeof(GENESIS_COINBASE_TX_HEX) / sizeof(*GENESIS_COINBASE_TX_HEX) != 1,
+        "GENESIS_COINBASE_TX_HEX must not be empty.");
 
     /* This is the unix timestamp of the first "mined" block (technically block 2, not the genesis block)
        You can get this value by doing "print_block 2" in RezinCatalystCored. It is used to know what timestamp
        to import from when the block height cannot be found in the node or the node is offline. */
-    const uint64_t GENESIS_BLOCK_TIMESTAMP                                 = 0;                    /* 01:30 PM GMT+1, 9th of January 2024 */
+    const uint64_t GENESIS_BLOCK_TIMESTAMP                                 = 1708445552;                    /* 11:12 PM GMT+5, 20th of Feburary 2024 */
     const size_t   CRYPTONOTE_REWARD_BLOCKS_WINDOW                         = 100;
     const size_t   CRYPTONOTE_BLOCK_GRANTED_FULL_REWARD_ZONE               = 100000;                        /* size of block (bytes) after which reward for block calculated using block size */
     const size_t   CRYPTONOTE_BLOCK_GRANTED_FULL_REWARD_ZONE_V2            = 20000;
@@ -229,7 +229,7 @@ namespace CryptoNote
     const char MINER_CONFIG_FILE_NAME[]                                    = "miner_conf.json";
   }
 
-  const char    CRYPTONOTE_NAME[]                                          = "RezinCatalystCore";
+  const char    CRYPTONOTE_NAME[]                                          = "Rezincc";
   const uint8_t TRANSACTION_VERSION_1                                      = 1;
   const uint8_t TRANSACTION_VERSION_2                                      = 2;
   const uint8_t CURRENT_TRANSACTION_VERSION                                = TRANSACTION_VERSION_1;
@@ -299,11 +299,11 @@ namespace CryptoNote
   const std::string LICENSE_URL                                            = "https://github.com/RezinCatalystCoreProject/RezinCatalystCore/blob/master/LICENSE";
 
   const static boost::uuids::uuid CRYPTONOTE_NETWORK = {
-    {0xf5, 0x2c, 0x6a, 0x6d, 0xff, 0x02, 0x07, 0x61, 0x95, 0xa9, 0xb0, 0x94, 0xc6, 0xd1, 0x33, 0x69}
+    {0x15, 0x2c, 0x6a, 0x1d, 0xff, 0x02, 0xa7, 0x61, 0xa5, 0xa9, 0xb0, 0x94, 0xc6, 0xd1, 0x33, 0x69}
   };
 
   const char *const SEED_NODES[] = {
-    "192.168.0.119:21000",
-    "192.168.0.112:21100"
+    "47.18.251.174:21000",
+    "47.18.251.174:21100"
   };
 }

@@ -7,6 +7,7 @@
 
 #include <cstddef>
 #include <initializer_list>
+#include <cstdint>
 
 namespace CryptoNote
 {
