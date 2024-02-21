@@ -169,9 +169,9 @@ namespace CryptoNote
     /* For new projects forked from this code base, the values immediately below
        should be changed to 0 to prevent issues with transaction processing
        and other possible unexpected behavior */
-    const uint64_t TRANSACTION_SIGNATURE_COUNT_VALIDATION_HEIGHT           = 0;
-    const uint64_t BLOCK_BLOB_SHUFFLE_CHECK_HEIGHT                         = 0;
-    const uint64_t TRANSACTION_INPUT_BLOCKTIME_VALIDATION_HEIGHT           = 0;
+    const uint64_t TRANSACTION_SIGNATURE_COUNT_VALIDATION_HEIGHT           = 250;
+    const uint64_t BLOCK_BLOB_SHUFFLE_CHECK_HEIGHT                         = 250;
+    const uint64_t TRANSACTION_INPUT_BLOCKTIME_VALIDATION_HEIGHT           = 250;
 
     /* This describes how many blocks of "wiggle" room transactions have regarding
        when the outputs can be spent based on a reasonable belief that the outputs
@@ -216,7 +216,7 @@ namespace CryptoNote
     };
 
     /* MAKE SURE TO UPDATE THIS VALUE WITH EVERY MAJOR RELEASE BEFORE A FORK - Count from 0 */
-    const uint64_t SOFTWARE_SUPPORTED_FORK_INDEX                           = 0;
+    const uint64_t SOFTWARE_SUPPORTED_FORK_INDEX                           = 3;
     const uint64_t FORK_HEIGHTS_SIZE                                       = sizeof(FORK_HEIGHTS) / sizeof(*FORK_HEIGHTS);
     const uint8_t  CURRENT_FORK_INDEX                                      = FORK_HEIGHTS_SIZE == 0 ? 0 : SOFTWARE_SUPPORTED_FORK_INDEX;
     //static_assert(CURRENT_FORK_INDEX >= 0, "CURRENT FORK INDEX must be >= 0");
