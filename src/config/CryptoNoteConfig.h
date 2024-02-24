@@ -33,7 +33,7 @@ namespace CryptoNote
 
     const uint64_t MONEY_SUPPLY                                            = UINT64_C(1'000'000'000'000);   /* 80'000'000 RZCC */
     const uint64_t BLOCK_REWARD                                            = UINT64_C(400'000);            /* Miner Reward: 4.00000000 RZCC */
-    const uint64_t GENESIS_BLOCK_REWARD                                    = UINT64_C(100'000'000'000);      /* Premine Reward: 800'000.00000000 RZCC (1%) */
+    const uint64_t GENESIS_BLOCK_REWARD                                    = UINT64_C(0);      /* Premine Reward: 800'000.00000000 RZCC (1%) */
 
     const uint64_t BLOCK_REWARD_P2                                         = UINT64_C(200'000);            /* Miner Reward: 2.00000000 RZCC */
     const uint64_t MASTERNODE_BLOCK_REWARD_P2                              = UINT64_C(300'000);            /* Masternode Reward: 3.00000000 RZCC (75%) */
@@ -88,7 +88,7 @@ namespace CryptoNote
     static_assert(CRYPTONOTE_BLOCK_GRANTED_FULL_REWARD_ZONE > CRYPTONOTE_BLOCK_REDUCTION_SIZE, "Reduction can not be bigger than full.");
     static_assert(CRYPTONOTE_BLOCK_GRANTED_FULL_REWARD_ZONE * 30 / 100 < CRYPTONOTE_BLOCK_REDUCTION_SIZE, "Reduction is too small.");
 
-    const size_t   CRYPTONOTE_DISPLAY_DECIMAL_POINT                        = 2;
+    const size_t   CRYPTONOTE_DISPLAY_DECIMAL_POINT                        = 3;
     const uint64_t MINIMUM_FEE = UINT64_C(1000);
     
     /* New fee V2
@@ -258,9 +258,9 @@ namespace CryptoNote
   const size_t   BLOCKS_IDS_SYNCHRONIZING_DEFAULT_COUNT                    = 10000;           // by default, blocks ids count in synchronizing
   const uint64_t BLOCKS_SYNCHRONIZING_DEFAULT_COUNT                        = 20;              // by default, blocks count in blocks downloading
   const size_t   COMMAND_RPC_GET_BLOCKS_FAST_MAX_COUNT                     = 100;
-  const int      P2P_DEFAULT_PORT                                          = 21000;           // P2P Port
-  const int      RPC_DEFAULT_PORT                                          = 21001;           // RPC Port
-  const int      SERVICE_DEFAULT_PORT                                      = 21002;           // Service Port
+  const int      P2P_DEFAULT_PORT                                          = 20118;           // P2P Port
+  const int      RPC_DEFAULT_PORT                                          = 20221;           // RPC Port
+  const int      SERVICE_DEFAULT_PORT                                      = 20814;           // Service Port
   const size_t   P2P_LOCAL_WHITE_PEERLIST_LIMIT                            = 1000;
   const size_t   P2P_LOCAL_GRAY_PEERLIST_LIMIT                             = 5000;
 
@@ -303,7 +303,7 @@ namespace CryptoNote
   };
 
   const char *const SEED_NODES[] = {
-    "47.18.251.174:21000",
-    "47.18.251.174:21100"
+    "192.168.1.239:20118",
+    "192.168.1.91:20221"
   };
 }
